@@ -126,15 +126,22 @@ die Uhr schiebt. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#4).
 
 ---
 
-## Was noch offen ist
+## Status
+
+Grün in der CI ([Runs](https://github.com/krausstt/agenda-dial/actions)):
 
 | Punkt | Status |
 |---|---|
-| Kalender-Provider auf der Uhr gefüllt? | **ungeprüft** — Kommando oben |
+| Gradle-Build, beide APKs | **läuft** — AGP 9.3, compileSdk 36 |
+| Unit-Tests der Bahnlogik | **grün** — 7 Tests, u. a. Folgetermine vs. echte Überschneidung |
+| `watchface.xml` gegen WFF v2 | **valide** — geprüft mit Googles eigenem `wff-validator` |
+| Generatoren deterministisch | **grün** — CI bricht bei Drift zu `geometry.json` ab |
+
+Offen, weil nur auf echter Hardware messbar:
+
+| Punkt | Status |
+|---|---|
+| Kalender-Provider auf der Uhr gefüllt? | **ungeprüft** — Kommando in [SETUP.md, Schritt 7](docs/SETUP.md) |
 | Complication-Update wirklich minütlich? | **ungeprüft** — `UPDATE_PERIOD_SECONDS=60` ist ein Wunsch, kein Vertrag |
 | Ambient-Verhalten des PHOTO_IMAGE-Slots | **ungeprüft** |
-| Quick Button der Watch Ultra auf Fremd-App legbar? | **unbelegt** — Samsung-Doku sagt „an app or setting", Listen nennen nur Samsung-Funktionen |
-| Erster Gradle-Build | **nie gelaufen** — es gab lokal kein JDK. Die erste CI-Runde ist der Compile-Check |
-
-Das Zifferblatt-Rendering selbst ist dagegen verifiziert: die Screenshots oben
-kommen aus derselben Geometrie, die der Kotlin-Renderer benutzt.
+| Quick Button der Watch Ultra auf Fremd-App legbar? | **unbelegt** — Samsung-Doku sagt „an app or setting", publizierte Listen nennen nur Samsung-Funktionen |

@@ -81,16 +81,22 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.wff/wff-validator.jar
-          key: wff-validator-${{ env.JAVA_VERSION }}-v1
+          key: wff-validator-${{ env.JAVA_VERSION }}-v2
 
+      # Das Gradle-Projekt des Validators liegt unter third_party/wff, nicht im
+      # Repo-Root, und der Task heisst executable-jar (nicht build) — sonst
+      # entsteht kein lauffaehiges Fat-Jar. Quelle: third_party/wff/README.md.
       - name: WFF-Validator bauen
         if: steps.wffcache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 https://github.com/google/watchface.git /tmp/watchface
-          cd /tmp/watchface && ./gradlew :specification:validator:build
+          cd /tmp/watchface/third_party/wff
+          ./gradlew :specification:validator:executable-jar
           mkdir -p ~/.wff
           cp specification/validator/build/libs/wff-validator.jar ~/.wff/
 
+      # Erstes Argument ist die Format-Version — muss zu der Property
+      # com.google.wear.watchface.format.version im Manifest passen (dort: 2).
       - name: watchface.xml validieren
         run: java -jar ~/.wff/wff-validator.jar 2 watchface/src/main/res/raw/watchface.xml
 

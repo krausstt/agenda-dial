@@ -1,0 +1,13 @@
+# Im Repo immer LF. Sonst kippt Windows die Zeilenenden von gradlew und der
+# Wrapper laeuft auf den Linux-Runnern der CI nicht mehr an.
+* text=auto eol=lf
+
+gradlew        text eol=lf
+*.sh           text eol=lf
+*.bat          text eol=crlf
+gradlew.bat    text eol=crlf
+
+*.png  binary
+*.jar  binary
+*.apk  binary
+*.keystore binary

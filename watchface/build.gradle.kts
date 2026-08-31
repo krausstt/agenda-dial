@@ -5,10 +5,19 @@ plugins { alias(libs.plugins.android.application) }
  * android:hasCode="false" im Manifest ist Pflicht.
  *
  * res/raw/watchface.xml wird von tools/genwff.mjs generiert,
- * res/drawable-nodpi/hand_*.png von tools/genassets.mjs.
- * Beide lesen design/geometry.json.
+ * res/drawable-nodpi/hand_*.png von tools/genassets.mjs,
+ * res/drawable-nodpi/preview.png von tools/shoot.mjs.
+ * Alle drei lesen design/geometry.json.
+ *
+ * Konfiguration folgt android/wear-os-samples, WatchFaceFormat/Complications:
+ *   enableKotlin = false   AGP 9 wuerde sonst Kotlin einhaengen, das es hier nicht gibt
+ *   isMinifyEnabled = true schrumpft Manifest und Metadaten des codefreien APK
+ *   isShrinkResources = false  sonst raeumt der Shrinker WFF-Ressourcen weg,
+ *                              die nur aus dem XML heraus referenziert werden
  */
 android {
+    enableKotlin = false
+
     namespace  = "de.agendadial.watchface"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
@@ -21,12 +30,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            isMinifyEnabled = true
+        }
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")   // Sideload-Builds
+            isMinifyEnabled = true
+            isShrinkResources = false
+            // Debug-Key: reicht fuers Sideload. Fuer Play Store spaeter ersetzen.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
-
-    // Ohne Code gibt es nichts zu kompilieren; aapt2 packt nur Ressourcen.
-    androidResources { noCompress += "xml" }
 }

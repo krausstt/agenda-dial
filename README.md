@@ -35,33 +35,20 @@ Zwei APKs, weil WFF `android:hasCode="false"` verlangt. Beide gehören auf die U
 
 ---
 
-## Toolchain installieren
+## Toolchain
 
-Auf deinem Rechner liegen aktuell nur `git`, `gh`, `node` und `python` — es
-fehlt die komplette Android-Seite. Drei Pakete, IDs sind gegen `winget search`
-geprüft:
+Vollständige Anleitung: **[docs/SETUP.md](docs/SETUP.md)** — zugeschnitten auf
+Windows 11 mit Alltagskonto ohne Admin-Rechte und separatem Admin-Konto.
 
-```bash
-winget install EclipseAdoptium.Temurin.21.JDK
-```
+Die Kurzfassung, weil genau daran die meiste Zeit verloren geht:
 
-```bash
-winget install Google.PlatformTools
-```
+> Das **Admin-Konto installiert nur Binaries**. Das **Alltagskonto macht jede
+> Einrichtung** — SDK-Download, Erststart, Builds. Android Studio legt das SDK
+> im Profil des Kontos ab, das den Assistenten durchklickt.
 
-```bash
-winget install Google.AndroidStudio
-```
-
-- **Temurin 21** — AGP 9.3 braucht JDK 17+, 21 ist die sichere Wahl.
-- **Platform-Tools** — nur `adb`, ~10 MB. Damit landet das APK auf der Uhr.
-- **Android Studio** — bringt SDK, Wear-Emulator und Gradle-Wrapper mit (~1,5 GB).
-  Wenn du ausschließlich über CI bauen willst, kannst du es weglassen; dann
-  fehlen dir aber Emulator und lokaler Build.
-
-Nach der Installation einmal Android Studio öffnen, den Ordner importieren
-(erzeugt den Gradle-Wrapper) und im SDK Manager **Android 16 / API 36** sowie
-ein **Wear OS System Image** nachziehen.
+Und: das Projekt gehört **nicht** in einen OneDrive-Ordner. Gradle schreibt
+zehntausende Dateien nach `build/`; in einem synchronisierten Ordner gibt das
+Dateisperren mitten im Build. `C:\dev\AgendaDial` oder ähnlich.
 
 ---
 

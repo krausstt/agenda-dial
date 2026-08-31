@@ -1,0 +1,73 @@
+{
+  "$comment": [
+    "Einzige Quelle der Zifferblatt-Geometrie. Alle Werte sind Bruchteile des",
+    "Displaydurchmessers D, damit 450 px (Watch Ultra) und 396 px (Watch 5) ohne",
+    "Sonderfall funktionieren. Winkel: 0 Grad = 12 Uhr, positiv im Uhrzeigersinn.",
+    "Canvas und Skia rechnen ab 3 Uhr, daher im Code ueberall -90.",
+    "Gelesen von: design/bench.html, core/DialGeometry.kt, tools/genwff.mjs"
+  ],
+  "reference": { "diameterPx": 450, "devices": { "ultra": 450, "watch5": 396 } },
+
+  "lanes": {
+    "1_indices":     "tickMinor* / tickMajor*",
+    "2_markerLane0": "hourRingRadius",
+    "3_markerLane1": "hourRingRadius - hourLaneStep",
+    "4_badges":      "hourBadgeOrbit",
+    "5_ribbonLane0": "ribbonLane0Radius — Primaerband, voller Titel",
+    "6_ribbonLane1": "ribbonLane1Radius — Parallelband, ebenfalls mit Titel"
+  },
+
+  "$ribbonNote": [
+    "Beide Ribbon-Bahnen tragen Text. Nicht ueberlappende Termine derselben",
+    "Stunde teilen sich Bahn 0 an verschiedenen Winkeln — echte Ueberschneidungen",
+    "wandern auf Bahn 1. Dafuer sind die Zeiger bewusst kurz: die Minute liest",
+    "man an der Jetzt-Marke auf dem Aussenrand, nicht am Zeiger. Regulator-Prinzip."
+  ],
+
+  "tickMinorOuter": 0.4780,
+  "tickMinorInner": 0.4620,
+  "tickMinorWidth": 0.0044,
+  "tickMajorOuter": 0.4780,
+  "tickMajorInner": 0.4550,
+  "tickMajorWidth": 0.0089,
+
+  "hourRingRadius": 0.4340,
+  "hourLaneStep":   0.0260,
+  "hourRingStroke": 0.0200,
+  "hourBadgeOrbit": 0.3680,
+  "hourBadgeRadius": 0.0230,
+
+  "ribbonLane0Radius": 0.2990,
+  "ribbonLane0Stroke": 0.0600,
+  "ribbonLane1Radius": 0.2340,
+  "ribbonLane1Stroke": 0.0540,
+
+  "handHourLength":   0.1300,
+  "handHourWidth":    0.0240,
+  "handMinuteLength": 0.1900,
+  "handMinuteWidth":  0.0150,
+  "handCap":          0.0180,
+
+  "titleSize":          0.0320,
+  "titleSizeSecondary": 0.0270,
+  "edgeLabelSize":      0.0230,
+  "badgeGlyphSize":     0.0230,
+  "meridiemSize":       0.0200,
+
+  "minMarkerSweepDeg": 3.2,
+  "ribbonGapDeg":      1.6,
+  "badgeSepFactor":    1.20,
+  "maxHourLanes":      2,
+  "maxRibbonLanes":    2,
+  "maxDayMarkers":     6,
+
+  "palette": {
+    "lume":   "#E8E4D8",
+    "now":    "#FF7A2E",
+    "indigo": "#5B8DFF",
+    "teal":   "#26C2A8",
+    "brass":  "#F0B429",
+    "rose":   "#EF6A88",
+    "violet": "#A78BFA"
+  }
+}

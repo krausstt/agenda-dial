@@ -1,0 +1,900 @@
+<title>AgendaDial Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #e9ebef;
+    --ground-2:    #f4f6f8;
+    --ink:         #141922;
+    --ink-2:       #4a5361;
+    --ink-3:       #7d8794;
+    --rule:        #cfd5dd;
+    --rule-soft:   #dfe4ea;
+    --accent:      #d2530a;
+    --accent-ink:  #ffffff;
+    --stage:       #07080a;
+    --stage-rim:   #22262d;
+
+    --ev-indigo:  #5b8dff;
+    --ev-teal:    #26c2a8;
+    --ev-brass:   #f0b429;
+    --ev-rose:    #ef6a88;
+    --ev-violet:  #a78bfa;
+
+    --f-ui:   "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --s1: .375rem; --s2: .75rem; --s3: 1.125rem; --s4: 1.75rem; --s5: 2.75rem;
+    --radius: 3px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0e1014;
+      --ground-2:  #161a20;
+      --ink:       #e6e9ee;
+      --ink-2:     #9aa4b2;
+      --ink-3:     #6b7482;
+      --rule:      #272c34;
+      --rule-soft: #1d2128;
+      --accent:    #ff7a2e;
+      --accent-ink:#120a04;
+      --stage:     #000000;
+      --stage-rim: #1b1f25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:    #0e1014;
+    --ground-2:  #161a20;
+    --ink:       #e6e9ee;
+    --ink-2:     #9aa4b2;
+    --ink-3:     #6b7482;
+    --rule:      #272c34;
+    --rule-soft: #1d2128;
+    --accent:    #ff7a2e;
+    --accent-ink:#120a04;
+    --stage:     #000000;
+    --stage-rim: #1b1f25;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-ui);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: var(--s5) var(--s3); }
+
+  header.mast {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--rule); padding-bottom: var(--s3); margin-bottom: var(--s4);
+  }
+  .mast h1 {
+    font-size: clamp(1.7rem, 3.4vw, 2.5rem); font-weight: 700; letter-spacing: -.025em;
+    margin: 0; text-wrap: balance;
+  }
+  .mast .sub { color: var(--ink-2); margin: 0; max-width: 46ch; font-size: .95rem; }
+  .badge {
+    font-family: var(--f-data); font-size: .68rem; font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; padding: .22em .55em; border: 1px solid var(--rule);
+    border-radius: var(--radius); color: var(--ink-2); white-space: nowrap;
+  }
+  .badge.hot { border-color: var(--accent); color: var(--accent); }
+
+  .bench { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--s4); align-items: start; }
+  @media (max-width: 860px) { .bench { grid-template-columns: 1fr; } }
+
+  .stage {
+    background: var(--stage); border: 1px solid var(--stage-rim); border-radius: 6px;
+    padding: var(--s4) var(--s3);
+    display: flex; flex-direction: column; align-items: center; gap: var(--s3);
+  }
+  .devices { display: flex; flex-wrap: wrap; gap: var(--s4); justify-content: center; align-items: flex-end; }
+  .device { display: flex; flex-direction: column; align-items: center; gap: var(--s2); }
+  .device canvas { display: block; border-radius: 50%; background: #000; }
+  .device .label {
+    font-family: var(--f-data); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: #5c646f;
+  }
+  .device .label b { color: #99a1ad; font-weight: 500; }
+
+  .panel { border: 1px solid var(--rule); border-radius: 6px; background: var(--ground-2); display: flex; flex-direction: column; }
+  .panel > * + * { border-top: 1px solid var(--rule-soft); }
+  .panel section { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+  .panel h2 {
+    font-family: var(--f-data); font-size: .67rem; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0;
+  }
+
+  .clock {
+    font-family: var(--f-data); font-size: 2.6rem; font-weight: 500; letter-spacing: -.02em;
+    line-height: 1; font-variant-numeric: tabular-nums; margin: 0;
+  }
+  .clock small { font-size: .95rem; color: var(--ink-3); letter-spacing: .04em; margin-left: .35em; }
+
+  input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+
+  .row { display: flex; gap: var(--s1); flex-wrap: wrap; }
+  button {
+    font-family: var(--f-ui); font-size: .8rem; font-weight: 500;
+    padding: .38em .7em; border-radius: var(--radius); cursor: pointer;
+    border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
+    transition: border-color .12s, color .12s, background .12s;
+  }
+  button:hover { border-color: var(--ink-3); color: var(--ink); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .agenda { display: flex; flex-direction: column; gap: 2px; }
+  .agenda button {
+    display: grid; grid-template-columns: 3px 5.6em 1fr auto; align-items: center; gap: .55em;
+    text-align: left; border: 0; border-radius: var(--radius); padding: .34em .5em .34em .4em;
+    background: transparent; width: 100%; font-size: .8rem; color: var(--ink-2);
+  }
+  .agenda button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+  .agenda button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); }
+  .agenda .swatch { width: 3px; height: 1.15em; border-radius: 2px; }
+  .agenda .when { font-family: var(--f-data); font-size: .72rem; font-variant-numeric: tabular-nums; color: var(--ink-3); }
+  .agenda button[aria-pressed="true"] .when { color: var(--ink-2); }
+  .agenda .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agenda .clash {
+    font-family: var(--f-data); font-size: .6rem; letter-spacing: .06em; padding: .1em .32em;
+    border: 1px solid currentColor; border-radius: 2px; color: var(--ink-3);
+  }
+  .agenda .clash[data-on="1"] { color: var(--accent); }
+
+  .readout { font-family: var(--f-data); font-size: .74rem; line-height: 1.75; color: var(--ink-2); }
+  .readout b { color: var(--ink); font-weight: 500; }
+  .readout .k { color: var(--ink-3); }
+  .readout .warn b { color: var(--accent); }
+
+  .legend { display: flex; flex-direction: column; gap: .3em; font-size: .74rem; color: var(--ink-2); }
+  .legend div { display: grid; grid-template-columns: 1.6em 1fr; align-items: center; gap: .5em; }
+  .legend svg { display: block; }
+
+  .spec { margin-top: var(--s5); }
+  .spec > h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; margin: 0 0 var(--s1); }
+  .spec > p { color: var(--ink-2); margin: 0 0 var(--s3); max-width: 68ch; font-size: .92rem; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; min-width: 660px; font-size: .82rem; }
+  th, td { text-align: left; padding: .55em .9em; border-bottom: 1px solid var(--rule-soft); }
+  thead th {
+    font-family: var(--f-data); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; background: var(--ground-2);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, td.code { font-family: var(--f-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.code { color: var(--accent); }
+  td.desc { color: var(--ink-2); }
+
+  footer.foot {
+    margin-top: var(--s5); padding-top: var(--s3); border-top: 1px solid var(--rule);
+    font-size: .8rem; color: var(--ink-3); display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3);
+    justify-content: space-between;
+  }
+  code { font-family: var(--f-data); font-size: .92em; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ?only=dial — nacktes 450x450-Zifferblatt für Screenshot-Tests und das
+     Play-/Picker-Preview. Kein Chrome, kein Rand, exakte Pixelmaße. */
+  body.only-dial { background: #000; }
+  body.only-dial .wrap { max-width: none; margin: 0; padding: 0; }
+  body.only-dial .mast, body.only-dial .panel, body.only-dial .spec,
+  body.only-dial .foot, body.only-dial #c-w5, body.only-dial .device .label { display: none; }
+  body.only-dial .bench { display: block; }
+  body.only-dial .stage { border: 0; border-radius: 0; padding: 0; background: #000; }
+  body.only-dial .devices, body.only-dial .device { gap: 0; display: block; }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <h1>AgendaDial</h1>
+    <span class="badge hot">Render-Spec</span>
+    <span class="badge">Wear OS 6 · WFF</span>
+    <p class="sub">Live-Simulator der Zifferblatt-Geometrie. Was hier steht, ist die Quelle für den Kotlin-Renderer — gleiche Konstanten, gleiche Winkelmathematik.</p>
+  </header>
+
+  <div class="bench">
+    <div class="stage">
+      <div class="devices">
+        <div class="device">
+          <canvas id="c-ultra" width="450" height="450" aria-label="Galaxy Watch Ultra Zifferblatt-Simulation"></canvas>
+          <span class="label"><b>Watch Ultra</b> · 450 × 450</span>
+        </div>
+        <div class="device">
+          <canvas id="c-w5" width="396" height="396" aria-label="Galaxy Watch 5 Zifferblatt-Simulation"></canvas>
+          <span class="label"><b>Watch 5</b> · 396 × 396</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <section>
+        <h2>Simulierte Zeit</h2>
+        <p class="clock" id="clock">17:10<small id="clock-sec">:00</small></p>
+        <input type="range" id="scrub" min="0" max="1439" step="1" value="1030" aria-label="Tageszeit scrubben">
+        <div class="row">
+          <button id="btn-play" aria-pressed="false">Lauf</button>
+          <button id="btn-now">Jetzt</button>
+          <button id="btn-1710">17:10</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Tag</h2>
+        <div class="row">
+          <button id="btn-day-clean" aria-pressed="true">Normaler Tag</button>
+          <button id="btn-day-clash" aria-pressed="false">Kollisionstag</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Modus</h2>
+        <div class="row">
+          <button id="btn-ambient" aria-pressed="false">Ambient</button>
+          <button id="btn-guides" aria-pressed="false">Bahnen</button>
+          <button id="btn-24h" aria-pressed="false">24 h</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Termine heute</h2>
+        <div class="agenda" id="agenda"></div>
+      </section>
+
+      <section>
+        <h2>Konfliktnotation</h2>
+        <div class="legend">
+          <div>
+            <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+              <rect x="1" y="2" width="22" height="3.4" rx="1.7" fill="#a78bfa"/>
+              <rect x="7" y="8.6" width="16" height="3.4" rx="1.7" fill="#26c2a8"/>
+            </svg>
+            <span>Zwei Bahnen, <b>beide mit Titel</b> — nur echte Überschneidungen wandern nach innen</span>
+          </div>
+          <div>
+            <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+              <path d="M6 2v10M22 2v10" stroke="#e8e4d8" stroke-width="1.3" stroke-linecap="round"/>
+              <path d="M6 7h16" stroke="#e8e4d8" stroke-width="1.1" opacity=".45"/>
+            </svg>
+            <span>Naht in der Rinne — genau hier bist du doppelt gebucht</span>
+          </div>
+          <div>
+            <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+              <circle cx="12" cy="7" r="6.2" fill="none" stroke="#a78bfa" stroke-width="1.1" opacity=".5"/>
+              <circle cx="12" cy="7" r="4.3" fill="none" stroke="#a78bfa" stroke-width="1.3"/>
+            </svg>
+            <span>Doppelring — dieser Termin liegt in einer verdeckten dritten Bahn</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Readout</h2>
+        <div class="readout" id="readout"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="spec">
+    <h2>Geometrie-Konstanten</h2>
+    <p>Alle Radien als Bruchteil des Displaydurchmessers <code>D</code>, damit 450 px (Ultra) und 396 px (Watch 5) ohne Sonderfall funktionieren. Winkel: 0° = 12 Uhr, positiv im Uhrzeigersinn. Canvas und Skia rechnen ab 3 Uhr — daher überall <code>−90°</code>. Die sechs Bahnen sind so budgetiert, dass sich zwei Marker-Lanes, die Badges und ein zweizeiliges Minutenband nie berühren.</p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Bahn</th><th>Element</th><th>Konstante</th><th>× D</th><th>@450 px</th><th>Bedeutung</th></tr>
+        </thead>
+        <tbody id="spec-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <span>AgendaDial · Design-Bench</span>
+    <span><code>hourAngle = ((h mod 12) + m/60) × 30°</code> · <code>minuteAngle = m × 6°</code></span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ───────────────────────────────────────────────────────────── Geometrie
+  // Single source of truth — der Kotlin-Renderer liest dieselben Zahlen aus
+  // geometry.json. Sechs konzentrische Bahnen, von außen nach innen:
+  //   1 Indizes · 2 Marker-Lane 0 · 3 Marker-Lane 1 · 4 Badges
+  //   5 Minutenband · 6 Konfliktband — darunter endet die Zeigerspitze.
+  const GEO = {
+    tickMinorOuter: 0.4780, tickMinorInner: 0.4620, tickMinorWidth: 0.0044,
+    tickMajorOuter: 0.4780, tickMajorInner: 0.4550, tickMajorWidth: 0.0089,
+
+    hourRingRadius: 0.4340, hourLaneStep: 0.0260, hourRingStroke: 0.0200,
+    hourBadgeOrbit: 0.3680, hourBadgeRadius: 0.0230,
+
+    ribbonLane0Radius: 0.2990, ribbonLane0Stroke: 0.0600,
+    ribbonLane1Radius: 0.2340, ribbonLane1Stroke: 0.0540,
+
+    handHourLength: 0.1300, handHourWidth: 0.0240,
+    handMinuteLength: 0.1900, handMinuteWidth: 0.0150,
+    handCap: 0.0180,
+
+    titleSize: 0.0320, titleSizeSecondary: 0.0270,
+    edgeLabelSize: 0.0230, badgeGlyphSize: 0.0230, meridiemSize: 0.0200,
+    minMarkerSweepDeg: 3.2, ribbonGapDeg: 1.6, badgeSepFactor: 1.20,
+    maxHourLanes: 2, maxRibbonLanes: 2
+  };
+
+  const SPEC_ROWS = [
+    ["1", "Indizes",      "tickMinorOuter",     GEO.tickMinorOuter,     "Zifferblattrand"],
+    ["2", "Marker-Lane 0","hourRingRadius",     GEO.hourRingRadius,     "Tages-Marker, erste Bahn"],
+    ["3", "Marker-Lane 1","hourLaneStep",       GEO.hourLaneStep,       "Versatz nach innen bei Überschneidung"],
+    ["–", "Marker",       "hourRingStroke",     GEO.hourRingStroke,     "Dicke eines Markers"],
+    ["4", "Badge",        "hourBadgeOrbit",     GEO.hourBadgeOrbit,     "eigene Umlaufbahn, kollisionsaufgelöst"],
+    ["–", "Badge",        "hourBadgeRadius",    GEO.hourBadgeRadius,    "Kreisradius"],
+    ["5", "Ribbon-Bahn 0","ribbonLane0Radius",  GEO.ribbonLane0Radius,  "erste Bahn — voller Titel"],
+    ["–", "Ribbon-Bahn 0","ribbonLane0Stroke",  GEO.ribbonLane0Stroke,  "Bandhöhe, trägt 14,4 px Text @450"],
+    ["6", "Ribbon-Bahn 1","ribbonLane1Radius",  GEO.ribbonLane1Radius,  "nur bei echter Überschneidung — auch mit Titel"],
+    ["–", "Ribbon-Bahn 1","ribbonLane1Stroke",  GEO.ribbonLane1Stroke,  "Bandhöhe, trägt 12,2 px Text @450"],
+    ["–", "Titel",        "titleSize",          GEO.titleSize,          "Schriftgrad Bahn 0"],
+    ["–", "Zeiger",       "handMinuteLength",   GEO.handMinuteLength,   "kurz: die Minute liest man an der Jetzt-Marke"],
+  ];
+
+  const PALETTE = { indigo:"#5b8dff", teal:"#26c2a8", brass:"#f0b429", rose:"#ef6a88", violet:"#a78bfa" };
+  const LUME = "#e8e4d8";
+
+  // ───────────────────────────────────────────────────────────── Datensätze
+  const DAYS = {
+    clean: [
+      { id:"a1", s: 9*60,    e: 9*60+30, t:"Daily Standup",      g:"S", c:"teal"   },
+      { id:"a2", s:10*60,    e:11*60,    t:"Product Review",     g:"P", c:"indigo" },
+      { id:"a3", s:12*60+30, e:13*60,    t:"Mittag",             g:"M", c:"brass"  },
+      { id:"a4", s:14*60,    e:15*60+30, t:"Kundentermin Bosch", g:"K", c:"rose"   },
+      { id:"a5", s:17*60+15, e:17*60+45, t:"1:1 mit Lena",       g:"L", c:"violet" },
+      { id:"a6", s:18*60,    e:18*60+20, t:"Wochenabschluss",    g:"W", c:"indigo" },
+    ],
+    clash: [
+      { id:"b1", s: 9*60,    e: 9*60+30, t:"Daily Standup",       g:"S", c:"teal"   },
+      { id:"b2", s: 9*60+30, e:10*60+30, t:"Sprint Review",       g:"P", c:"indigo" },
+      { id:"b3", s:10*60,    e:11*60,    t:"Kundencall Bosch",    g:"K", c:"rose"   },
+      { id:"b4", s:10*60+15, e:10*60+45, t:"Eskalation Line 4",   g:"E", c:"brass"  },
+      { id:"b5", s:13*60,    e:14*60,    t:"Fokuszeit",           g:"F", c:"brass"  },
+      { id:"b6", s:13*60+30, e:14*60+30, t:"Interview Kandidat",  g:"I", c:"violet" },
+      { id:"b7", s:17*60,    e:17*60+45, t:"1:1 mit Lena",        g:"L", c:"violet" },
+      { id:"b8", s:17*60+15, e:18*60,    t:"Release Sync",        g:"R", c:"teal"   },
+      { id:"b9", s:18*60,    e:18*60+20, t:"Wochenabschluss",     g:"W", c:"indigo" },
+    ]
+  };
+
+  // ─────────────────────────────────────────────────────────────── Helfer
+  const TAU = Math.PI * 2;
+  const rad = d => d * Math.PI / 180;
+  const pad = n => String(n).padStart(2, "0");
+  const hhmm = m => `${pad(Math.floor(m/60)%24)}:${pad(Math.floor(m)%60)}`;
+  const hexA = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+  };
+  const pt = (cx, cy, r, dialDeg) => {
+    const a = rad(dialDeg - 90);
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+
+  /**
+   * Greedy interval colouring. Termine, die zeitlich überlappen, bekommen
+   * getrennte Bahnen. Wer über maxLanes hinausgeht, wird in die letzte Bahn
+   * gefaltet und dort als Stapel gezählt.
+   */
+  function assignLanes(events, maxLanes) {
+    const sorted = [...events].sort((a, b) => a.s - b.s || a.e - b.e);
+    const laneEnd = [];
+    const lanes = new Map(), overflow = new Map();
+    for (const ev of sorted) {
+      let lane = laneEnd.findIndex(end => end <= ev.s);
+      if (lane === -1) { lane = laneEnd.length; }
+      laneEnd[lane] = ev.e;
+      lanes.set(ev.id, Math.min(lane, maxLanes - 1));
+      overflow.set(ev.id, lane >= maxLanes);
+    }
+    return { lanes, overflow, depth: laneEnd.length };
+  }
+
+  /** Zeitfenster, in denen mindestens zwei Termine gleichzeitig laufen. */
+  function clashSpans(events) {
+    const pts = [];
+    for (const ev of events) { pts.push([ev.s, 1], [ev.e, -1]); }
+    pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const spans = [];
+    let depth = 0, start = null, peak = 0;
+    for (const [t, d] of pts) {
+      const prev = depth; depth += d;
+      if (prev < 2 && depth >= 2) { start = t; peak = depth; }
+      else if (depth >= 2) peak = Math.max(peak, depth);
+      if (prev >= 2 && depth < 2 && start !== null) { spans.push({ s: start, e: t, n: peak }); start = null; peak = 0; }
+    }
+    return spans;
+  }
+
+  function arcBand(ctx, cx, cy, r, w, a0, a1, color, cap = "round") {
+    if (a1 - a0 <= 0.05 || r <= 0) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = cap;
+    ctx.arc(cx, cy, r, rad(a0 - 90), rad(a1 - 90), false);
+    ctx.stroke();
+  }
+
+  /**
+   * Text entlang eines Bogens. Unterhalb der Waagerechten werden die Glyphen
+   * gespiegelt und gegen den Uhrzeigersinn gesetzt, damit die Zeile für den
+   * Träger lesbar bleibt (Uhrmacher-Konvention). Kürzt mit Ellipse.
+   */
+  function curvedText(ctx, text, cx, cy, r, centerDeg, maxSweep, font, color) {
+    ctx.save();
+    ctx.font = font; ctx.fillStyle = color;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+
+    let chars = [...text];
+    const sweepOf = cs => (cs.reduce((a, c) => a + ctx.measureText(c).width, 0) / r) * 180 / Math.PI;
+    if (sweepOf(chars) > maxSweep) {
+      while (chars.length > 1 && sweepOf([...chars, "…"]) > maxSweep) chars.pop();
+      chars.push("…");
+    }
+    const sweep = sweepOf(chars);
+    const norm = ((centerDeg % 360) + 360) % 360;
+    const flip = norm > 90 && norm < 270;
+
+    let a = flip ? centerDeg + sweep / 2 : centerDeg - sweep / 2;
+    for (const ch of chars) {
+      const adv = (ctx.measureText(ch).width / r) * 180 / Math.PI;
+      const mid = flip ? a - adv / 2 : a + adv / 2;
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(rad(mid)); ctx.translate(0, -r);
+      if (flip) ctx.rotate(Math.PI);
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      a += flip ? -adv : adv;
+    }
+    ctx.restore();
+    return sweep;
+  }
+
+  /**
+   * Konflikt-Naht: eine Haarlinie in der Rinne zwischen den beiden Marker-Lanes,
+   * begrenzt von zwei kurzen Radialstrichen. Sie liegt im Zwischenraum und
+   * überzeichnet daher keinen einzigen Termin-Marker.
+   */
+  function clashSeam(ctx, cx, cy, a0, a1, D, G, dim) {
+    const rSeam = G("hourRingRadius") - G("hourLaneStep") / 2;
+    const half  = G("hourLaneStep") / 2 + G("hourRingStroke") / 2;
+    const lw = Math.max(1, D * 0.0030);
+    ctx.save();
+    ctx.lineCap = "round"; ctx.lineWidth = lw;
+
+    ctx.strokeStyle = `rgba(232,228,216,${0.40 * dim})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rSeam, rad(a0 - 90), rad(a1 - 90), false);
+    ctx.stroke();
+
+    ctx.strokeStyle = `rgba(232,228,216,${0.85 * dim})`;
+    for (const a of [a0, a1]) {
+      const [x0, y0] = pt(cx, cy, rSeam + half, a);
+      const [x1, y1] = pt(cx, cy, rSeam - half, a);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ──────────────────────────────────────────────────────────── Rendering
+  function render(canvas, state) {
+    const D = canvas.width;
+    const ctx = canvas.getContext("2d");
+    const cx = D / 2, cy = D / 2;
+    const G = k => GEO[k] * D;
+    const { minutes, ambient, guides, hours24, selected } = state;
+    const events = DAYS[state.day];
+
+    const hourSpan = hours24 ? 24 : 12;
+    const degPerHour = 360 / hourSpan;
+    const dim = ambient ? 0.55 : 1;
+    const lume = ambient ? "#8e9099" : LUME;
+    const col = c => PALETTE[c];
+    const toDeg = m => (hours24 ? (m / 60) : ((m / 60) % 12)) * degPerHour;
+
+    ctx.clearRect(0, 0, D, D);
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, D, D);
+
+    // ── Bahnen-Overlay ─────────────────────────────────────────────────
+    if (guides) {
+      ctx.save();
+      ctx.lineWidth = 1;
+      const bands = [
+        ["hourRingRadius", "hourRingStroke", 0],
+        ["hourRingRadius", "hourRingStroke", GEO.hourLaneStep],
+        ["ribbonLane0Radius", "ribbonLane0Stroke", 0],
+        ["ribbonLane1Radius", "ribbonLane1Stroke", 0],
+      ];
+      for (const [rk, sk, off] of bands) {
+        const r = G(rk) - off * D;
+        ctx.setLineDash([2, 4]); ctx.strokeStyle = "rgba(255,122,46,.40)";
+        for (const sign of [1, -1]) {
+          ctx.beginPath(); ctx.arc(cx, cy, r + sign * G(sk) / 2, 0, TAU); ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]); ctx.strokeStyle = "rgba(255,122,46,.30)";
+      ctx.beginPath(); ctx.arc(cx, cy, G("hourBadgeOrbit"), 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── Bahn 1: Indizes ────────────────────────────────────────────────
+    for (let i = 0; i < hourSpan; i++) {
+      const major = hours24 ? i % 6 === 0 : i % 3 === 0;
+      const a = i * degPerHour;
+      const [x0, y0] = pt(cx, cy, G(major ? "tickMajorOuter" : "tickMinorOuter"), a);
+      const [x1, y1] = pt(cx, cy, G(major ? "tickMajorInner" : "tickMinorInner"), a);
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(232,228,216,${(major ? 0.85 : 0.34) * dim})`;
+      ctx.lineWidth = G(major ? "tickMajorWidth" : "tickMinorWidth");
+      ctx.lineCap = "butt";
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+
+    // ── Bahn 2/3: Tages-Marker, gestapelt nach Überschneidung ──────────
+    const { lanes, overflow } = assignLanes(events, GEO.maxHourLanes);
+    const stackCount = new Map(); // Lane-1-Termine, die weitere verdecken
+
+    for (const ev of events) {
+      const lane = lanes.get(ev.id);
+      const r = G("hourRingRadius") - lane * G("hourLaneStep");
+      let a0 = toDeg(ev.s), a1 = toDeg(ev.e);
+      if (a1 <= a0) a1 += 360;
+      if (a1 - a0 < GEO.minMarkerSweepDeg) a1 = a0 + GEO.minMarkerSweepDeg;
+      arcBand(ctx, cx, cy, r, G("hourRingStroke"),
+              a0 + GEO.ribbonGapDeg / 2, a1 - GEO.ribbonGapDeg / 2,
+              ambient ? "#3a3f47" : col(ev.c));
+      if (overflow.get(ev.id)) stackCount.set(ev.id, true);
+    }
+
+    // ── Konflikt-Nähte ─────────────────────────────────────────────────
+    const spans = clashSpans(events);
+    for (const sp of spans) {
+      let a0 = toDeg(sp.s), a1 = toDeg(sp.e);
+      if (a1 <= a0) a1 += 360;
+      clashSeam(ctx, cx, cy, a0, a1, D, G, dim);
+    }
+
+    // ── Bahn 4: Kürzel-Badges, Kollision aufgelöst ─────────────────────
+    const minSep = (2 * GEO.hourBadgeRadius * GEO.badgeSepFactor / GEO.hourBadgeOrbit) * 180 / Math.PI;
+    const badges = events.map(ev => {
+      let a0 = toDeg(ev.s), a1 = toDeg(ev.e);
+      if (a1 <= a0) a1 += 360;
+      return { ev, a: (a0 + a1) / 2 };
+    }).sort((x, y) => x.a - y.a);
+    for (let i = 1; i < badges.length; i++) {
+      if (badges[i].a - badges[i - 1].a < minSep) badges[i].a = badges[i - 1].a + minSep;
+    }
+
+    for (const { ev, a } of badges) {
+      const [bx, by] = pt(cx, cy, G("hourBadgeOrbit"), a);
+      const base = col(ev.c);
+      const stacked = stackCount.has(ev.id);
+      ctx.beginPath(); ctx.arc(bx, by, G("hourBadgeRadius"), 0, TAU);
+      ctx.fillStyle = "#000"; ctx.fill();
+      ctx.lineWidth = Math.max(1, D * 0.0033);
+      ctx.strokeStyle = ambient ? "#5c626b" : base; ctx.stroke();
+      // Doppelring = dieser Termin liegt in einer verdeckten Bahn
+      if (stacked) {
+        ctx.beginPath(); ctx.arc(bx, by, G("hourBadgeRadius") + D * 0.008, 0, TAU);
+        ctx.strokeStyle = ambient ? "#4a4f57" : hexA(base, 0.5);
+        ctx.lineWidth = Math.max(1, D * 0.0026); ctx.stroke();
+      }
+      ctx.font = `600 ${G("badgeGlyphSize")}px "Instrument Sans", sans-serif`;
+      ctx.fillStyle = ambient ? "#8e9099" : base;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(ev.g, bx, by + G("badgeGlyphSize") * 0.05);
+
+      if (selected === ev.id && !ambient) {
+        ctx.beginPath(); ctx.arc(bx, by, G("hourBadgeRadius") + D * 0.013, 0, TAU);
+        ctx.strokeStyle = "rgba(255,122,46,.9)"; ctx.lineWidth = Math.max(1, D * 0.004); ctx.stroke();
+      }
+    }
+
+    // ── Bahn 5/6: Minutenband der laufenden Stunde ─────────────────────
+    const hourStart = Math.floor(minutes / 60) * 60;
+    const inHour = events
+      .filter(ev => ev.e > hourStart && ev.s < hourStart + 60)
+      .sort((a, b) => a.s - b.s || (a.e - a.s) - (b.e - b.s));
+
+    const LANE = [
+      { r: G("ribbonLane0Radius"), w: G("ribbonLane0Stroke"), ts: G("titleSize") },
+      { r: G("ribbonLane1Radius"), w: G("ribbonLane1Stroke"), ts: G("titleSizeSecondary") },
+    ];
+
+    // gestrichelte Grundlinie der Minutenskala, unter der inneren Bahn
+    ctx.save();
+    ctx.strokeStyle = `rgba(232,228,216,${0.16 * dim})`;
+    ctx.lineWidth = Math.max(1, D * 0.0026);
+    ctx.setLineDash([D * 0.006, D * 0.012]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, LANE[1].r - LANE[1].w / 2 - D * 0.012, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    const clipDeg = ev => [
+      (Math.max(ev.s, hourStart) - hourStart) * 6,
+      (Math.min(ev.e, hourStart + 60) - hourStart) * 6
+    ];
+
+    // Bahnen innerhalb der Stunde vergeben. Aufeinanderfolgende Termine — etwa
+    // Standup bis :30 und Review ab :30 — teilen sich Bahn 0 an verschiedenen
+    // Winkeln und bekommen beide ihren Titel. Nur echte Überschneidungen
+    // wandern nach innen auf Bahn 1.
+    const laneEnd = [];
+    const onLane = [[], []];
+    let hidden = 0;
+    for (const ev of inHour) {
+      let lane = laneEnd.findIndex(e => e <= ev.s);
+      if (lane === -1) lane = laneEnd.length;
+      laneEnd[lane] = ev.e;
+      if (lane >= GEO.maxRibbonLanes) { hidden++; continue; }
+      onLane[lane].push(ev);
+    }
+
+    for (let li = 0; li < LANE.length; li++) {
+      const { r, w, ts } = LANE[li];
+      for (const ev of onLane[li]) {
+        const base = col(ev.c);
+        const [a0, a1] = clipDeg(ev);
+
+        arcBand(ctx, cx, cy, r, w, a0, a1, ambient ? "rgba(255,255,255,.06)" : hexA(base, 0.22), "butt");
+        arcBand(ctx, cx, cy, r, w, a0, Math.min(a0 + 1.4, a1), ambient ? "#6d737c" : base, "butt");
+        ctx.save();
+        ctx.strokeStyle = ambient ? "rgba(160,166,175,.45)" : hexA(base, 0.55);
+        ctx.lineWidth = Math.max(1, D * 0.0026);
+        for (const rr of [r - w / 2, r + w / 2]) {
+          ctx.beginPath(); ctx.arc(cx, cy, rr, rad(a0 - 90), rad(a1 - 90)); ctx.stroke();
+        }
+        ctx.restore();
+
+        // Startzeit am Innenrand; ihr Winkel wird dem Titel abgezogen
+        const labelFont = `500 ${G("edgeLabelSize")}px "IBM Plex Mono", monospace`;
+        let leadDeg = 0;
+        if (!ambient && a1 - a0 > 40) {
+          const rIn = r - w / 2 + G("edgeLabelSize") * 0.85;
+          ctx.save(); ctx.font = labelFont;
+          leadDeg = (ctx.measureText(hhmm(ev.s)).width / rIn) * 180 / Math.PI + 2.5;
+          ctx.restore();
+          curvedText(ctx, hhmm(ev.s), cx, cy, rIn, a0 + leadDeg / 2, leadDeg, labelFont, hexA(base, 0.95));
+        }
+
+        const tS = a0 + leadDeg + 3.5, tE = a1 - 3.5;
+        if (tE - tS > 7) {
+          curvedText(ctx, ev.t, cx, cy, r + ts * 0.05, (tS + tE) / 2, tE - tS,
+                     `500 ${ts}px "Instrument Sans", sans-serif`,
+                     ambient ? "#c3c7cd" : "#f4f2ee");
+        }
+      }
+    }
+
+    // Überlappungsfenster radial klammern — nur wo Bahn 0 und 1 sich decken
+    for (const a of onLane[0]) {
+      for (const b of onLane[1]) {
+        const [p0, p1] = clipDeg(a), [q0, q1] = clipDeg(b);
+        const o0 = Math.max(p0, q0), o1 = Math.min(p1, q1);
+        if (o1 - o0 <= 0.5) continue;
+        const rOut = LANE[0].r + LANE[0].w / 2 + D * 0.008;
+        const rIn  = LANE[1].r - LANE[1].w / 2 - D * 0.008;
+        ctx.save();
+        ctx.strokeStyle = `rgba(232,228,216,${0.8 * dim})`;
+        ctx.lineWidth = Math.max(1, D * 0.0033); ctx.lineCap = "round";
+        for (const ang of [o0, o1]) {
+          const [x0, y0] = pt(cx, cy, rOut, ang), [x1, y1] = pt(cx, cy, rIn, ang);
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    if (hidden > 0) {
+      ctx.save();
+      ctx.font = `600 ${G("edgeLabelSize")}px "IBM Plex Mono", monospace`;
+      ctx.fillStyle = ambient ? "#8e9099" : "#ff7a2e";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(`+${hidden}`, cx, cy + D * 0.115);
+      ctx.restore();
+    }
+
+    // ── Jetzt-Marke auf dem Minutenring ────────────────────────────────
+    const nowDeg = (minutes % 60) * 6;
+    const nowBase = G("ribbonLane0Radius") + G("ribbonLane0Stroke") / 2;
+    const [nx0, ny0] = pt(cx, cy, nowBase + D * 0.024, nowDeg);
+    const [nx1, ny1] = pt(cx, cy, nowBase + D * 0.010, nowDeg);
+    ctx.beginPath(); ctx.moveTo(nx0, ny0); ctx.lineTo(nx1, ny1);
+    ctx.strokeStyle = ambient ? "#9aa0a8" : "#ff7a2e";
+    ctx.lineWidth = Math.max(1.5, D * 0.006); ctx.lineCap = "round"; ctx.stroke();
+
+    // ── am/pm im Zentrum, unter den Zeigern ────────────────────────────
+    if (!hours24) {
+      ctx.save();
+      ctx.font = `500 ${G("meridiemSize")}px "IBM Plex Mono", monospace`;
+      ctx.fillStyle = `rgba(232,228,216,${0.55 * dim})`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(minutes >= 720 ? "PM" : "AM", cx, cy + D * 0.072);
+      ctx.restore();
+    }
+
+    // ── Zeiger ─────────────────────────────────────────────────────────
+    drawHand(ctx, cx, cy, ((minutes / 60) % 12) * 30, G("handHourLength"),   G("handHourWidth"),   lume, ambient, D);
+    drawHand(ctx, cx, cy, (minutes % 60) * 6,         G("handMinuteLength"), G("handMinuteWidth"), lume, ambient, D);
+
+    ctx.beginPath(); ctx.arc(cx, cy, G("handCap"), 0, TAU);
+    ctx.fillStyle = "#0a0a0a"; ctx.fill();
+    ctx.strokeStyle = ambient ? "#8e9099" : "#ff7a2e";
+    ctx.lineWidth = Math.max(1.5, D * 0.005); ctx.stroke();
+  }
+
+  function drawHand(ctx, cx, cy, deg, len, w, color, ambient, D) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(rad(deg));
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, D * 0.035);
+    ctx.lineTo(-w / 2, -len + w);
+    ctx.lineTo(0, -len);
+    ctx.lineTo(w / 2, -len + w);
+    ctx.lineTo(w / 2, D * 0.035);
+    ctx.closePath();
+    if (ambient) { ctx.strokeStyle = color; ctx.lineWidth = Math.max(1, D * 0.0033); ctx.stroke(); }
+    else { ctx.fillStyle = color; ctx.fill(); }
+    ctx.restore();
+  }
+
+  // ─────────────────────────────────────────────────────────────── State
+  // Zustand aus der URL, damit CI reproduzierbare Screenshots schießen kann:
+  //   bench.html?day=clash&t=17:10&ambient=1&guides=1&h24=1
+  const Q = new URLSearchParams(location.search);
+  if (Q.get("only") === "dial") document.body.classList.add("only-dial");
+  const qTime = (Q.get("t") || "").match(/^(\d{1,2}):(\d{2})$/);
+  const state = {
+    minutes: qTime ? (+qTime[1] * 60 + +qTime[2]) : 17*60 + 10,
+    ambient: Q.get("ambient") === "1",
+    guides:  Q.get("guides")  === "1",
+    hours24: Q.get("h24")     === "1",
+    selected: null, playing: false,
+    day: Q.get("day") === "clash" ? "clash" : "clean"
+  };
+  const cUltra = document.getElementById("c-ultra");
+  const cW5 = document.getElementById("c-w5");
+
+  function paint() {
+    render(cUltra, state);
+    render(cW5, state);
+    const m = Math.floor(state.minutes);
+    document.getElementById("clock").firstChild.nodeValue = hhmm(m);
+    document.getElementById("clock-sec").textContent = ":" + pad(Math.floor((state.minutes % 1) * 60));
+    document.getElementById("scrub").value = m;
+    paintAgenda();
+    paintReadout();
+  }
+
+  const agendaHost = document.getElementById("agenda");
+  agendaHost.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const ev = DAYS[state.day].find(x => x.id === b.dataset.id);
+    state.selected = state.selected === ev.id ? null : ev.id;
+    if (state.selected) state.minutes = Math.max(ev.s + 5, 0);
+    paint();
+  });
+
+  function paintAgenda() {
+    const events = DAYS[state.day];
+    const spans = clashSpans(events);
+    const clashes = new Set();
+    for (const ev of events) {
+      if (spans.some(sp => ev.s < sp.e && ev.e > sp.s)) clashes.add(ev.id);
+    }
+    agendaHost.innerHTML = events.map(ev => `
+      <button type="button" data-id="${ev.id}" aria-pressed="${ev.id === state.selected}">
+        <span class="swatch" style="background:${PALETTE[ev.c]}"></span>
+        <span class="when">${hhmm(ev.s)}–${hhmm(ev.e)}</span>
+        <span class="what">${ev.t}</span>
+        <span class="clash" data-on="${clashes.has(ev.id) ? 1 : 0}">${clashes.has(ev.id) ? "×" : "·"}</span>
+      </button>`).join("");
+  }
+
+  function paintReadout() {
+    const events = DAYS[state.day];
+    const m = state.minutes;
+    const hourStart = Math.floor(m / 60) * 60;
+    const inHour = events.filter(ev => ev.e > hourStart && ev.s < hourStart + 60);
+    const running = events.filter(ev => ev.s <= m && ev.e > m);
+    const next = events.find(ev => ev.s > m);
+    const { depth } = assignLanes(events, 99);
+    const spans = clashSpans(events);
+
+    const rows = [
+      ["hourAngle",    `${(((m/60)%12)*30).toFixed(1)}°`, false],
+      ["minuteAngle",  `${((m%60)*6).toFixed(1)}°`, false],
+      ["Marker-Lanes", `${Math.min(depth, GEO.maxHourLanes)} genutzt · ${depth} nötig`, depth > GEO.maxHourLanes],
+      ["Ribbon-Bahnen", `${Math.min(inHour.length, GEO.maxRibbonLanes)} mit Titel · ${inHour.length} in dieser Stunde`, inHour.length > GEO.maxRibbonLanes],
+      ["Konflikte",    spans.length ? spans.map(s => `${hhmm(s.s)}–${hhmm(s.e)}`).join(", ") : "keine", spans.length > 0],
+    ];
+    if (inHour[0]) {
+      const a0 = (Math.max(inHour[0].s, hourStart) - hourStart) * 6;
+      const a1 = (Math.min(inHour[0].e, hourStart + 60) - hourStart) * 6;
+      rows.splice(2, 0, ["Ribbon-Sweep", `${a0.toFixed(0)}° → ${a1.toFixed(0)}°`, false]);
+    }
+    rows.push(["Status",
+      running.length > 1 ? `${running.length} Termine parallel`
+      : running.length === 1 ? `läuft: ${running[0].t}`
+      : next ? `frei · in ${Math.round(next.s - m)} min` : "frei bis morgen",
+      running.length > 1]);
+
+    document.getElementById("readout").innerHTML = rows.map(([k, v, warn]) =>
+      `<div class="${warn ? "warn" : ""}"><span class="k">${k}</span> <b>${v}</b></div>`).join("");
+  }
+
+  // ──────────────────────────────────────────────────────────── Controls
+  document.getElementById("scrub").addEventListener("input", e => { state.minutes = +e.target.value; stop(); paint(); });
+  document.getElementById("btn-now").addEventListener("click", () => {
+    const d = new Date(); state.minutes = d.getHours()*60 + d.getMinutes(); paint();
+  });
+  document.getElementById("btn-1710").addEventListener("click", () => { state.minutes = 17*60 + 10; paint(); });
+
+  const dayBtns = { clean: document.getElementById("btn-day-clean"), clash: document.getElementById("btn-day-clash") };
+  for (const [key, btn] of Object.entries(dayBtns)) {
+    btn.addEventListener("click", () => {
+      state.day = key; state.selected = null;
+      for (const [k, b] of Object.entries(dayBtns)) b.setAttribute("aria-pressed", String(k === key));
+      paint();
+    });
+  }
+
+  for (const [id, key] of [["btn-ambient","ambient"], ["btn-guides","guides"], ["btn-24h","hours24"]]) {
+    document.getElementById(id).addEventListener("click", e => {
+      state[key] = !state[key];
+      e.currentTarget.setAttribute("aria-pressed", String(state[key]));
+      paint();
+    });
+  }
+
+  let raf = null, last = 0;
+  const playBtn = document.getElementById("btn-play");
+  function stop() { state.playing = false; playBtn.setAttribute("aria-pressed", "false"); if (raf) cancelAnimationFrame(raf); raf = null; }
+  function tick(t) {
+    if (!last) last = t;
+    state.minutes = (state.minutes + (t - last) / 1000 * 0.5) % 1440;  // 1 s ≙ 30 s Uhrzeit
+    last = t; paint();
+    raf = requestAnimationFrame(tick);
+  }
+  playBtn.addEventListener("click", () => {
+    if (state.playing) stop();
+    else { state.playing = true; playBtn.setAttribute("aria-pressed", "true"); last = 0; raf = requestAnimationFrame(tick); }
+  });
+
+  document.getElementById("spec-body").innerHTML = SPEC_ROWS.map(([lane, el, k, v, d]) => `
+    <tr>
+      <td class="num">${lane}</td>
+      <td>${el}</td>
+      <td class="code">${k}</td>
+      <td class="num">${v.toFixed(4)}</td>
+      <td class="num">${(v * 450).toFixed(1)} px</td>
+      <td class="desc">${d}</td>
+    </tr>`).join("");
+
+  // Startzustand in die Buttons spiegeln
+  for (const [k, b] of Object.entries(dayBtns)) b.setAttribute("aria-pressed", String(k === state.day));
+  for (const [id, key] of [["btn-ambient","ambient"], ["btn-guides","guides"], ["btn-24h","hours24"]]) {
+    document.getElementById(id).setAttribute("aria-pressed", String(state[key]));
+  }
+
+  document.fonts.ready.then(paint);
+  paint();
+})();
+</script>

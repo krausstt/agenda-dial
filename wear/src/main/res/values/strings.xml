@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">AgendaDial</string>
+  <string name="complication_label">AgendaDial Agenda</string>
+  <string name="complication_description">Termine des Tages als Zifferblatt-Layer</string>
+  <string name="needs_calendar_permission">AgendaDial braucht Zugriff auf den Kalender</string>
+</resources>

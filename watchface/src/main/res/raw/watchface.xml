@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AgendaDial — GENERIERT von tools/genwff.mjs aus design/geometry.json.
+  Nicht von Hand bearbeiten. Geometrie ändern -> geometry.json -> neu generieren.
+-->
+<WatchFace width="450" height="450" clipShape="CIRCLE">
+  <Metadata key="CLOCK_TYPE" value="ANALOG" />
+  <Metadata key="PREVIEW_TIME" value="17:10:00" />
+
+  <Scene backgroundColor="#000000">
+
+    <!--
+      Agenda-Layer. Ein bildschirmfüllender PHOTO_IMAGE-Slot ist zulässig — das
+      offizielle Complications-Sample nutzt exakt dieses Muster für seinen
+      Hintergrund. Der Slot ist zugleich das Tap-Ziel: ein Tipp öffnet die
+      Organizer-App auf dem gerade laufenden Termin.
+    -->
+    <ComplicationSlot
+        slotId="0"
+        x="0" y="0" width="450" height="450"
+        displayName="@string/slot_agenda"
+        supportedTypes="PHOTO_IMAGE EMPTY"
+        isCustomizable="false">
+      <BoundingOval x="0" y="0" width="450" height="450" outlinePadding="2.0" />
+      <DefaultProviderPolicy
+          primaryProvider="de.agendadial.wear/de.agendadial.wear.AgendaComplicationService"
+          primaryProviderType="PHOTO_IMAGE"
+          systemProvider="EMPTY"
+          systemProviderType="EMPTY" />
+      <Complication type="PHOTO_IMAGE">
+        <PartImage x="0" y="0" width="450" height="450">
+          <Image resource="[COMPLICATION.PHOTO_IMAGE]" />
+          <Variant mode="AMBIENT" target="alpha" value="150" />
+        </PartImage>
+      </Complication>
+    </ComplicationSlot>
+
+    <!--
+      Zeiger nativ. Der Agenda-Bitmap aktualisiert nur minütlich; die Zeit darf
+      davon nicht abhängen. Kein Sekundenzeiger — spart Akku und passt zum
+      Wireframe.
+    -->
+    <AnalogClock x="0" y="0" width="450" height="450">
+      <HourHand resource="hand_hour" x="219.5" y="166" width="11" height="75" pivotX="0.5" pivotY="0.786667" />
+      <MinuteHand resource="hand_minute" x="221.5" y="139" width="7" height="102" pivotX="0.5" pivotY="0.843137" />
+    </AnalogClock>
+
+    <!-- Zeigerkappe -->
+    <PartDraw x="0" y="0" width="450" height="450">
+      <Ellipse x="216.9" y="216.9"
+               width="16.2" height="16.2">
+        <Fill color="#0A0A0A" />
+        <Stroke thickness="2.25" color="#FF7A2E" />
+      </Ellipse>
+      <Variant mode="AMBIENT" target="alpha" value="120" />
+    </PartDraw>
+
+  </Scene>
+</WatchFace>

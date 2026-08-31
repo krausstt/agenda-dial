@@ -1,0 +1,153 @@
+# AgendaDial
+
+Ein Zifferblatt für Galaxy Watch Ultra und Galaxy Watch 5, das den Tag als
+Kalender liest statt als Uhrzeit: alle Termine als Marker auf dem Stundenring,
+die laufende Stunde als betiteltes Band auf dem Minutenring.
+
+![Zifferblatt](watchface/src/main/res/drawable-nodpi/preview.png)
+
+**Die Kurzfassung der Architektur:** Kotlin-Watchfaces sind auf Wear OS 6
+plattformseitig blockiert — auch beim Sideload. Watch Face Format ist Pflicht,
+kann aber keinen Kalender lesen. Also: ein WFF-Zifferblatt, das einen
+bildschirmfüllenden `PHOTO_IMAGE`-Slot rendert, den unser eigener
+Complication-Provider in Kotlin zeichnet. Zeiger bleiben nativ im WFF.
+Vollständige Herleitung mit Quellen: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Aufbau
+
+```
+design/bench.html      Live-Simulator + Render-Spec. Öffnet im Browser, kein Build nötig.
+design/geometry.json   Einzige Quelle der Geometrie. Alles andere wird daraus generiert.
+
+tools/genassets.mjs    -> Zeiger-PNGs
+tools/genwff.mjs       -> watchface/src/main/res/raw/watchface.xml
+tools/genkotlin.mjs    -> core/.../DialGeometry.kt
+tools/shoot.mjs        -> Picker-Preview, Launcher-Icon, Szenario-Screenshots
+
+core/                  Geteilter Renderer + Bahnlogik (JVM-testbar)
+wear/                  Complication-Provider + Organizer-App          -> APK 1
+watchface/             Watch Face Format, per Definition ohne Code    -> APK 2
+```
+
+Zwei APKs, weil WFF `android:hasCode="false"` verlangt. Beide gehören auf die Uhr.
+
+---
+
+## Toolchain installieren
+
+Auf deinem Rechner liegen aktuell nur `git`, `gh`, `node` und `python` — es
+fehlt die komplette Android-Seite. Drei Pakete, IDs sind gegen `winget search`
+geprüft:
+
+```bash
+winget install EclipseAdoptium.Temurin.21.JDK
+```
+
+```bash
+winget install Google.PlatformTools
+```
+
+```bash
+winget install Google.AndroidStudio
+```
+
+- **Temurin 21** — AGP 9.3 braucht JDK 17+, 21 ist die sichere Wahl.
+- **Platform-Tools** — nur `adb`, ~10 MB. Damit landet das APK auf der Uhr.
+- **Android Studio** — bringt SDK, Wear-Emulator und Gradle-Wrapper mit (~1,5 GB).
+  Wenn du ausschließlich über CI bauen willst, kannst du es weglassen; dann
+  fehlen dir aber Emulator und lokaler Build.
+
+Nach der Installation einmal Android Studio öffnen, den Ordner importieren
+(erzeugt den Gradle-Wrapper) und im SDK Manager **Android 16 / API 36** sowie
+ein **Wear OS System Image** nachziehen.
+
+---
+
+## Die drei Iterationsschleifen
+
+Bewusst nach Geschwindigkeit gestaffelt — die meisten Änderungen brauchen nur die erste.
+
+### 1 · Geometrie und Layout — Sekunden, ohne Toolchain
+
+`design/bench.html` im Browser öffnen. Zeit scrubben, Kollisionstag umschalten,
+Bahnen einblenden, Ambient testen. Zahlen in `design/geometry.json` ändern,
+Seite neu laden. Zustand ist per URL adressierbar:
+
+```
+design/bench.html?day=clash&t=17:10&guides=1
+design/bench.html?only=dial&t=09:20&day=clash
+```
+
+Wenn es hier stimmt, stimmt es auf der Uhr — Bench und Kotlin-Renderer lesen
+dieselben Konstanten und rechnen dieselbe Winkelmathematik.
+
+### 2 · Generatoren — eine Sekunde
+
+```bash
+node tools/genassets.mjs && node tools/genwff.mjs && node tools/genkotlin.mjs && node tools/shoot.mjs
+```
+
+Die CI bricht ab, wenn generierte Dateien nicht zur `geometry.json` passen.
+
+### 3 · Aufs Handgelenk — zwei bis drei Minuten
+
+**Ohne lokalen Build:** pushen, GitHub Actions baut beide APKs und hängt sie als
+Artefakt an. Ein Tag `v0.1.0` erzeugt zusätzlich ein Release, aus dem du die
+APKs direkt am Handy ziehen und per *Wear Installer* auf die Uhr schieben kannst.
+
+**Mit adb über WLAN** (schneller, sobald einmal gekoppelt):
+
+Auf der Uhr *Einstellungen → Info → Softwareinformationen* → siebenmal auf
+Softwareversion tippen, dann *Entwickleroptionen → ADB-Debugging* und
+*Debugging über WLAN* aktivieren. Die Uhr zeigt IP und Port.
+
+```bash
+adb pair <UHR-IP>:<PAIRING-PORT>
+```
+
+```bash
+adb connect <UHR-IP>:<PORT>
+```
+
+```bash
+adb install -r -d watchface/build/outputs/apk/release/watchface-release.apk
+```
+
+```bash
+adb install -r -d wear/build/outputs/apk/release/wear-release.apk
+```
+
+Dann auf der Uhr lange aufs Zifferblatt drücken und **AgendaDial** wählen.
+
+---
+
+## Zuerst prüfen: kommen die Kalenderdaten an?
+
+Das ist das größte Risiko des Projekts, und es kostet 30 Sekunden. Wear OS hat
+einen **eigenen** Kalender-Provider — ob dein Arbeitskalender dort landet, hängt
+am Sync-Setup der Uhr.
+
+```bash
+adb shell content query --uri content://com.android.calendar/calendars --projection _id:account_name:calendar_displayName
+```
+
+Kommt nichts oder nur ein leerer lokaler Kalender zurück, brauchen wir Plan B:
+eine Companion-App am Handy, die die Agenda über die Wearable Data Layer API auf
+die Uhr schiebt. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#4).
+
+---
+
+## Was noch offen ist
+
+| Punkt | Status |
+|---|---|
+| Kalender-Provider auf der Uhr gefüllt? | **ungeprüft** — Kommando oben |
+| Complication-Update wirklich minütlich? | **ungeprüft** — `UPDATE_PERIOD_SECONDS=60` ist ein Wunsch, kein Vertrag |
+| Ambient-Verhalten des PHOTO_IMAGE-Slots | **ungeprüft** |
+| Quick Button der Watch Ultra auf Fremd-App legbar? | **unbelegt** — Samsung-Doku sagt „an app or setting", Listen nennen nur Samsung-Funktionen |
+| Erster Gradle-Build | **nie gelaufen** — es gab lokal kein JDK. Die erste CI-Runde ist der Compile-Check |
+
+Das Zifferblatt-Rendering selbst ist dagegen verifiziert: die Screenshots oben
+kommen aus derselben Geometrie, die der Kotlin-Renderer benutzt.

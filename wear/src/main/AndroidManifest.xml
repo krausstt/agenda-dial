@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <uses-feature android:name="android.hardware.type.watch" />
+
+  <!--
+    Der Kalender-Provider der UHR, nicht des Handys. Ob dein Arbeitskalender
+    dort ankommt, haengt am Sync-Setup — siehe docs/ARCHITECTURE.md, Abschnitt 4.
+  -->
+  <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+  <application
+      android:label="@string/app_name"
+      android:icon="@mipmap/ic_launcher"
+      android:supportsRtl="true">
+
+    <meta-data
+        android:name="com.google.android.wearable.standalone"
+        android:value="true" />
+
+    <!-- Detailansicht. Ziel des Taps auf den Agenda-Slot des Zifferblatts. -->
+    <activity
+        android:name=".OrganizerActivity"
+        android:exported="true"
+        android:label="@string/app_name"
+        android:taskAffinity=""
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+
+    <!--
+      Complication-Provider. Diese API ist ausdruecklich NICHT deprecated —
+      nur die Watchface-Renderer-APIs sind es.
+
+      UPDATE_PERIOD_SECONDS ist ein Wunsch, keine Garantie: das System darf
+      drosseln. Deshalb liegen die Zeiger nativ im WFF und nicht in diesem
+      Bitmap. Zusaetzlich stoesst ein ContentObserver auf dem Kalender ein
+      Update an, sobald sich Termine aendern.
+    -->
+    <service
+        android:name=".AgendaComplicationService"
+        android:exported="true"
+        android:label="@string/complication_label"
+        android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+      <intent-filter>
+        <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+      </intent-filter>
+      <meta-data
+          android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+          android:value="PHOTO_IMAGE" />
+      <meta-data
+          android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+          android:value="60" />
+    </service>
+  </application>
+</manifest>

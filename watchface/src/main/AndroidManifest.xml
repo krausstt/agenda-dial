@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <uses-feature android:name="android.hardware.type.watch" />
+
+  <!-- hasCode MUSS false sein — Watch Face Format erlaubt keinen Code im APK. -->
+  <application
+      android:label="@string/watch_face_name"
+      android:hasCode="false">
+
+    <meta-data
+        android:name="com.google.android.wearable.standalone"
+        android:value="true" />
+
+    <!--
+      Format-Version 2 deckt Wear OS 5 und 6 ab. Alles, was AgendaDial nutzt
+      (bildschirmfüllender PHOTO_IMAGE-Slot, DefaultProviderPolicy, AnalogClock),
+      existiert seit v1/v2. Höher nur gehen, wenn wir v4/v5-Features brauchen.
+    -->
+    <property
+        android:name="com.google.wear.watchface.format.version"
+        android:value="2" />
+  </application>
+</manifest>

@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_VERSION: "9.5.1"
+  JAVA_VERSION: "21"
+
+jobs:
+
+  # ── Schleife 1 (~60 s): Design. Kein Android-SDK noetig. ──────────────────
+  # Prueft, dass die generierten Dateien wirklich aus geometry.json stammen,
+  # und legt Zifferblatt-Screenshots als Artefakt ab. Wer nur an der Geometrie
+  # schraubt, bekommt hier die Antwort, ohne auf Gradle zu warten.
+  design:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Generatoren laufen lassen
+        run: |
+          node tools/genassets.mjs
+          node tools/genwff.mjs
+          node tools/genkotlin.mjs
+
+      - name: Kein Drift zwischen geometry.json und generierten Dateien
+        run: |
+          if [ -n "$(git status --porcelain -- watchface/src core/src)" ]; then
+            echo "::error::Generierte Dateien sind nicht aktuell. Lokal die drei tools/gen*.mjs laufen lassen und committen."
+            git --no-pager diff -- watchface/src core/src
+            exit 1
+          fi
+
+      - name: Zifferblatt-Screenshots
+        run: |
+          export CHROME_PATH="$(which google-chrome || which chromium-browser || which chromium)"
+          node tools/shoot.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dial-screenshots
+          path: build/shots/
+          retention-days: 30
+
+  # ── Schleife 2 (~3 min): Build. Baut beide APKs und prueft das WFF. ───────
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Unit-Tests (Bahnlogik)
+        run: gradle :core:testDebugUnitTest
+
+      - name: APKs bauen
+        run: gradle :watchface:assembleRelease :wear:assembleRelease
+
+      # Offizieller Validator aus google/watchface. Er ist der einzige
+      # verlaessliche Test, ob das WFF-XML gueltig ist — die Doku laesst
+      # mehrere Details offen.
+      - name: WFF-Validator cachen
+        id: wffcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.wff/wff-validator.jar
+          key: wff-validator-${{ env.JAVA_VERSION }}-v1
+
+      - name: WFF-Validator bauen
+        if: steps.wffcache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/google/watchface.git /tmp/watchface
+          cd /tmp/watchface && ./gradlew :specification:validator:build
+          mkdir -p ~/.wff
+          cp specification/validator/build/libs/wff-validator.jar ~/.wff/
+
+      - name: watchface.xml validieren
+        run: java -jar ~/.wff/wff-validator.jar 2 watchface/src/main/res/raw/watchface.xml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: |
+            watchface/build/outputs/apk/release/*.apk
+            wear/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+  # ── Schleife 3: Release. Auf ein Tag hin beide APKs veroeffentlichen, ─────
+  # damit sie vom Handy per Wear Installer auf die Uhr wandern koennen.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [design, build]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: apks, path: apks }
+      - uses: actions/download-artifact@v4
+        with: { name: dial-screenshots, path: shots }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apks/**/*.apk
+            shots/*.png
+          generate_release_notes: true

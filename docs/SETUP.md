@@ -115,6 +115,44 @@ Invoke-WebRequest -Uri https://dl.google.com/android/repository/platform-tools-l
 adb version
 ```
 
+### Die PATH-Falle
+
+Hier geht es fast immer schief, und die Fehlermeldung sagt nicht, warum:
+
+```
+The term 'adb' is not recognized as the name of a cmdlet, ...
+```
+
+Zwei verschiedene Ursachen, die gleich aussehen:
+
+**1. Der Eintrag steht im PATH des Admin-Kontos statt im System-PATH.**
+Die GUI unter *Umgebungsvariablen* hat zwei Kästen. Der obere („Benutzervariablen
+für tkrauss") gilt nur für das Admin-Konto — dein Alltagskonto sieht ihn nie. Es
+muss der untere sein („Systemvariablen"). In PowerShell entsprechend `'Machine'`
+statt `'User'` als drittes Argument von `SetEnvironmentVariable`.
+
+Prüfen lässt sich das **ohne Admin-Rechte**, weil die Registry-Werte lesbar sind:
+
+```bash
+([Environment]::GetEnvironmentVariable('Path','Machine') -split ';') | Where-Object { $_ -match 'platform-tools' }
+```
+
+Kommt nichts zurück, steht der Eintrag nicht im System-PATH.
+
+**Der einfachere Weg:** weil `adb` in `C:\Android\platform-tools` liegt — einem
+Ordner, den jedes Konto lesen darf — reicht ein Eintrag in deinem **eigenen**
+Benutzer-PATH. Das braucht keine Elevation und keinen Kontowechsel:
+
+```bash
+[Environment]::SetEnvironmentVariable('Path', ([Environment]::GetEnvironmentVariable('Path','User').TrimEnd(';') + ';C:\Android\platform-tools'), 'User')
+```
+
+**2. Der Eintrag ist richtig, aber das Terminal ist zu alt.**
+Windows liest den PATH beim Start eines Prozesses ein. Jede schon offene
+PowerShell, jedes Terminal, auch Claude Code und Android Studio behalten den
+alten Stand — **bis sie neu gestartet werden**. Ein neues Fenster genügt; für
+Claude Code und Studio heißt es beenden und neu öffnen.
+
 ---
 
 ## Schritt 4 — JDK (optional)

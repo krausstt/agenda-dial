@@ -19,8 +19,8 @@
     den leeren AOSP-Kalender zurueck.
   -->
   <queries>
-    <provider android:authorities="com.samsung.android.watch.watchface.complication.calendar" />
-    <package android:name="com.samsung.android.watch.watchface.complicationhelper" />
+    <provider android:authorities="com.google.android.wearable.provider.calendar" />
+    <provider android:authorities="com.android.calendar" />
   </queries>
 
   <!--

@@ -115,45 +115,57 @@ Das war das größte Restrisiko. Am 02.09.2026 auf einer Galaxy Watch Ultra
 
 | Provider | Ergebnis |
 |---|---|
-| `com.android.calendar` (AOSP `CalendarProvider2`) | **leer** — kein Kalender-Sync-Adapter für das Google-Konto auf der Uhr |
-| `com.samsung.android.calendar.watch` | **gesperrt** — `SecurityException`, verlangt `com.samsung.android.calendar.permission.READ` (Signatur-Level) |
-| `com.google.android.wearable.provider.calendar` | existiert, kennt aber weder `/calendars` noch `/instances` |
-| **`com.samsung.android.watch.watchface.complication.calendar/events`** | **liefert alles** |
+| `com.android.calendar` (AOSP `CalendarProvider2`) | **leer** — auf der Uhr läuft kein Kalender-Sync-Adapter |
+| `com.samsung.android.calendar.watch` | **gesperrt** — `SecurityException`, Signatur-Permission |
+| `…watchface.complication.calendar/events` | Daten da, aber **Paket-Allowlist** sperrt Drittanbieter aus |
+| **`com.google.android.wearable.provider.calendar`** | **liefert den gespiegelten Handy-Kalender** |
 
-Der letzte ist genau der, den Samsung für Zifferblatt-Complications
-bereitstellt — also für unseren Anwendungsfall gebaut. Er gibt den vom Handy
-gespiegelten Kalender inklusive Exchange-/Outlook-Terminen heraus:
+Der richtige ist Wear OS' eigener Kalenderspiegel, historisch als
+`WearableCalendarContract` bekannt. Wear OS synchronisiert den Kalender des
+Handys selbst auf die Uhr — inklusive Exchange- und Outlook-Konten. Verifiziert
+am 03.09.2026: `ownerAccount=tobias.krauss@proglove.de`, Termine mit
+Teams-Links und ProGlove-Teilnehmern.
+
+Der Pfad ist derselbe wie bei [`CalendarContract.Instances`], nur unter eigener
+Authority:
 
 ```
-eventId, eventUid, begin, end, beginDay, endDay, title, location, description,
-allDay, color, calendarId, timeZone, organizer, ownerAccount,
-selfAttendeeStatus, hasAlarm, accessLevel, deleted, synced, timeStamp
+content://com.google.android.wearable.provider.calendar/instances/when/<begin>/<end>
 ```
 
-Reicher als geplant: `color` und `allDay` sparen einen Join, `selfAttendeeStatus`
-erlaubt das Ausblenden abgesagter Termine, `location` und `organizer` sind
-Material für die Detailansicht.
+Die Wearable Support Library, die dafür früher die Konstanten lieferte, gibt es
+nicht mehr — der Provider auf dem Gerät schon. Die URI wird deshalb von Hand
+gebaut.
 
-### Drei Eigenheiten, die die Implementierung bestimmen
+### Die Sackgasse, die nicht wieder betreten werden sollte
 
-1. **Die Projektion wird ignoriert.** Es kommen immer alle Spalten zurück,
-   `description` mit vollem HTML-Body inklusive.
-2. **Eine Selection liefert null Zeilen** — nicht gefilterte, gar keine. Selbst
-   `deleted=0` kippt das Ergebnis von 487 auf 0. `selection`, `selectionArgs`
-   und `sortOrder` müssen `null` bleiben, gefiltert wird clientseitig.
-3. **Der Zeitraum ist groß.** Im Test 487 Zeilen über rund fünf Monate.
+Samsungs Complication-Provider sieht verlockend aus: `exported="true"`, keine
+Permission im Manifest, und aus der adb-Shell liest er sich problemlos. Aus
+einer App heraus kommt aber kommentarlos `null` zurück. Der Grund steht nur im
+Logcat der **Gegenseite**:
 
-Alle drei sind in [`CalendarRepository`](../wear/src/main/java/de/agendadial/wear/CalendarRepository.kt)
-kommentiert. Punkt 2 ist die gefährlichste: eine gut gemeinte Optimierung, die
-eine `where`-Klausel einführt, macht die App still leer.
+```
+W ComplicationHelper: [AppValidator] package[de.agendadial.wear] is not allowed to access!!
+E ComplicationHelper: [CalendarComplicationContentProvider] not allowed package:de.agendadial.wear
+```
+
+Eine Paket-Allowlist für Samsungs eigene Zifferblatt-Familie. Das ist Absicht
+und wird nicht umgangen. Lehre fürs nächste Mal: wenn ein Provider `null` statt
+einer `SecurityException` liefert, lohnt der Blick ins Log des Providers, nicht
+nur ins eigene.
+
+### Eigenheit des Wear-Providers
+
+**`sortOrder` muss `null` sein.** Ein `ORDER BY` liefert nicht etwa unsortierte,
+sondern **null** Zeilen. Sortiert wird in `DayPlan`. Eine Projektion wird
+dagegen respektiert — wichtig, weil `description` ganze HTML-Mails enthält.
 
 ### Plan B steht weiter bereit
 
-Der Provider ist Samsung-spezifisch und undokumentiert. Fällt er weg — anderes
-Fabrikat, Samsung ändert etwas —, greift automatisch der Standardweg über
-`CalendarContract`. Bleibt auch der leer, ist der Rückfallplan unverändert:
-eine Companion-App am Handy liest dort `CalendarContract` und schiebt die
-Tagesagenda über die **Wearable Data Layer API** auf die Uhr.
+Fällt der Wear-Provider weg, greift automatisch `CalendarContract`. Bleibt auch
+der leer, ist der Rückfallplan unverändert: eine Companion-App am Handy liest
+dort `CalendarContract` und schiebt die Tagesagenda über die **Wearable Data
+Layer API** auf die Uhr.
 
 ---
 

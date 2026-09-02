@@ -51,12 +51,14 @@ $dev = Find-Watch
 Write-Host "Uhr: $dev" -ForegroundColor Green
 
 if (-not $SkipDownload) {
-  $run = gh run list --limit 20 --json databaseId,conclusion,headBranch |
-         ConvertFrom-Json | Where-Object { $_.conclusion -eq "success" } | Select-Object -First 1
-  if (-not $run) { throw "Kein gruener CI-Run gefunden." }
-  Write-Host "CI-Run $($run.databaseId)" -ForegroundColor Green
+  # gh selbst filtern lassen. Windows PowerShell 5.1 enumeriert das Array aus
+  # ConvertFrom-Json nicht, ein Where-Object darauf liefert die ganze Liste
+  # zurueck — und gh run download bekaeme dann saemtliche Run-IDs auf einmal.
+  $runId = @((gh run list --status success --limit 1 --json databaseId | ConvertFrom-Json).databaseId)[0]
+  if (-not $runId) { throw "Kein gruener CI-Run gefunden." }
+  Write-Host "CI-Run $runId" -ForegroundColor Green
   Remove-Item "build\ci-apks" -Recurse -Force -ErrorAction SilentlyContinue
-  gh run download $run.databaseId -n apks -D build\ci-apks | Out-Null
+  gh run download $runId -n apks -D build\ci-apks | Out-Null
 }
 
 $apks = @(

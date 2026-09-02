@@ -15,36 +15,40 @@ import java.util.Calendar
 import java.util.TimeZone
 
 /**
- * Liest die Tagesagenda auf der Uhr — aus zwei Quellen, in dieser Reihenfolge.
+ * Liest die Tagesagenda auf der Uhr.
  *
- * ## Warum zwei Quellen
+ * ## Welcher Provider — auf Geraet durchprobiert
  *
- * Auf der Galaxy Watch Ultra (One UI 8 Watch / Wear OS 6) ist der AOSP-Provider
- * `content://com.android.calendar` **leer**. Auf der Uhr laeuft kein
- * Kalender-Sync-Adapter fuer das Google-Konto, und Samsungs eigener
- * `com.samsung.android.calendar.watch` ist mit einer Signatur-Permission
- * geschuetzt (`com.samsung.android.calendar.permission.READ`), an die eine
- * Drittanbieter-App nicht herankommt.
+ * Auf der Galaxy Watch Ultra (One UI 8 Watch / Wear OS 6) gibt es vier
+ * Kandidaten. Drei davon fuehren ins Leere, der vierte ist der richtige:
  *
- * Lesbar ist dagegen der Provider, den Samsung ausdruecklich fuer Zifferblatt-
- * Complications bereitstellt:
+ * | Provider | Ergebnis |
+ * |---|---|
+ * | `com.android.calendar` (AOSP) | leer — auf der Uhr laeuft kein Kalender-Sync-Adapter |
+ * | `com.samsung.android.calendar.watch` | `SecurityException`, Signatur-Permission |
+ * | `…watchface.complication.calendar` | Daten vorhanden, aber Paket-Allowlist sperrt uns aus |
+ * | **`com.google.android.wearable.provider.calendar`** | **liefert den gespiegelten Handy-Kalender** |
  *
- *     content://com.samsung.android.watch.watchface.complication.calendar/events
+ * Der letzte ist Wear OS' eigener Kalenderspiegel — historisch als
+ * `WearableCalendarContract` bekannt. Wear OS synchronisiert den Kalender des
+ * Handys selbst auf die Uhr, inklusive Exchange- und Outlook-Konten. Genau
+ * dafuer ist er da, und er ist fuer Drittanbieter-Apps offen.
  *
- * Der liefert den echten, vom Handy gespiegelten Kalender inklusive Exchange-
- * bzw. Outlook-Terminen. Auf einer Galaxy Watch am 02.09.2026 verifiziert.
+ * Der Samsung-Provider sieht auf den ersten Blick verlockender aus — er ist
+ * `exported="true"` ohne jede Permission, und aus der adb-Shell liest er sich
+ * problemlos. Er prueft aber intern den aufrufenden Paketnamen:
  *
- * ## Eigenheiten dieses Providers — teuer erkauft, bitte nicht wegoptimieren
+ *     W ComplicationHelper: [AppValidator] package[de.agendadial.wear] is not allowed to access!!
  *
- * 1. **Die Projektion wird ignoriert.** Egal was man anfordert, es kommen immer
- *    alle Spalten zurueck, `description` mit vollem HTML-Body inklusive.
- * 2. **Eine Selection liefert null Zeilen.** Nicht etwa gefilterte — gar keine.
- *    Selbst `deleted=0` kippt das Ergebnis von 487 auf 0. Also: `selection`,
- *    `selectionArgs` und `sortOrder` MUESSEN `null` sein, gefiltert wird hier.
- * 3. **Der Zeitraum ist gross.** Im Test 487 Zeilen ueber rund fuenf Monate.
+ * Nicht erneut versuchen. Die Sperre ist Absicht und gilt fuer alle Apps
+ * ausserhalb von Samsungs eigener Zifferblatt-Familie.
  *
- * Faellt der Provider aus — anderes Uhrenfabrikat, Samsung aendert etwas —,
- * greift automatisch der Standardweg ueber [CalendarContract].
+ * ## Zwei Eigenheiten des Wear-Providers
+ *
+ * 1. **`sortOrder` muss `null` sein.** Ein `ORDER BY` liefert nicht sortierte,
+ *    sondern **null** Zeilen. Sortiert wird in [de.agendadial.core.DayPlan].
+ * 2. Eine Projektion wird dagegen respektiert — wichtig, weil `description`
+ *    ganze HTML-Mails enthaelt und den CursorWindow unnoetig fuellt.
  */
 class CalendarRepository(private val context: Context) {
 
@@ -54,6 +58,11 @@ class CalendarRepository(private val context: Context) {
 
     /** Termine des Tages, in Minuten seit Mitternacht lokaler Zeit. */
     fun eventsForToday(nowMillis: Long = System.currentTimeMillis()): List<CalendarEvent> {
+        if (!hasPermission()) {
+            Log.w(TAG, "READ_CALENDAR fehlt")
+            return emptyList()
+        }
+
         val tz = TimeZone.getDefault()
         val dayStart = Calendar.getInstance(tz).apply {
             timeInMillis = nowMillis
@@ -62,133 +71,104 @@ class CalendarRepository(private val context: Context) {
         }.timeInMillis
         val dayEnd = dayStart + DAY_MS
 
-        readSamsungComplicationProvider(dayStart, dayEnd)?.let { return it }
-        if (!hasPermission()) return emptyList()
-        return readCalendarContract(dayStart, dayEnd)
+        readInstances(wearUri(dayStart, dayEnd), "Wear-Provider", dayStart)?.let { return it }
+        return readInstances(aospUri(dayStart, dayEnd), "CalendarContract", dayStart) ?: emptyList()
     }
 
-    // ── Quelle 1: Samsungs Complication-Provider ──────────────────────────
+    // ── URIs ──────────────────────────────────────────────────────────────
 
-    private fun readSamsungComplicationProvider(dayStart: Long, dayEnd: Long): List<CalendarEvent>? {
+    /**
+     * Wear OS' Kalenderspiegel. Der Pfad ist `instances/when/<begin>/<end>` —
+     * dieselbe Form wie [CalendarContract.Instances], nur unter eigener
+     * Authority. Frueher als `WearableCalendarContract.Instances.CONTENT_URI`
+     * in der Wearable Support Library; die ist Geschichte, der Provider auf
+     * dem Geraet nicht.
+     */
+    private fun wearUri(from: Long, to: Long): Uri =
+        WEAR_INSTANCES.buildUpon().let {
+            ContentUris.appendId(it, from)
+            ContentUris.appendId(it, to)
+            it.build()
+        }
+
+    private fun aospUri(from: Long, to: Long): Uri =
+        CalendarContract.Instances.CONTENT_URI.buildUpon().let {
+            ContentUris.appendId(it, from)
+            ContentUris.appendId(it, to)
+            it.build()
+        }
+
+    // ── Lesen ─────────────────────────────────────────────────────────────
+
+    /** Gibt `null` zurueck, wenn der Provider nicht erreichbar ist — dann greift der naechste. */
+    private fun readInstances(uri: Uri, label: String, dayStart: Long): List<CalendarEvent>? {
         val cursor: Cursor? = try {
-            // Alles null. Siehe Eigenheit 1 und 2 im Klassenkommentar.
-            context.contentResolver.query(SAMSUNG_EVENTS, null, null, null, null)
+            // sortOrder MUSS null bleiben: der Wear-Provider liefert sonst null Zeilen.
+            context.contentResolver.query(uri, PROJECTION, null, null, null)
         } catch (e: SecurityException) {
-            Log.i(TAG, "Samsung-Provider nicht zugaenglich, weiche auf CalendarContract aus", e)
-            return null
+            Log.i(TAG, "$label: nicht zugaenglich", e); return null
         } catch (e: IllegalArgumentException) {
-            Log.i(TAG, "Samsung-Provider nicht vorhanden, weiche auf CalendarContract aus", e)
-            return null
+            Log.i(TAG, "$label: unbekannte URI", e); return null
         }
 
         if (cursor == null) {
-            // Kein Fehler, nur Stille: so verhaelt sich ein Provider, dessen
-            // Paket wegen Package Visibility unsichtbar ist. Das <queries>-
-            // Element im Manifest ist die Gegenmassnahme.
-            Log.w(TAG, "Samsung-Provider lieferte null — Authority unsichtbar? <queries> im Manifest pruefen")
+            // Kein Fehler, nur Stille — so sieht ein Provider aus, der uns
+            // aussperrt oder wegen Package Visibility unsichtbar ist.
+            Log.w(TAG, "$label: query lieferte null")
             return null
         }
+
         val out = ArrayList<CalendarEvent>()
         cursor.use { c ->
-            val iBegin  = c.getColumnIndex("begin")
-            val iEnd    = c.getColumnIndex("end")
-            val iTitle  = c.getColumnIndex("title")
+            val iId       = c.getColumnIndex(CalendarContract.Instances.EVENT_ID)
+            val iBegin    = c.getColumnIndex(CalendarContract.Instances.BEGIN)
+            val iEnd      = c.getColumnIndex(CalendarContract.Instances.END)
+            val iTitle    = c.getColumnIndex(CalendarContract.Instances.TITLE)
+            val iAllDay   = c.getColumnIndex(CalendarContract.Instances.ALL_DAY)
+            val iEvColor  = c.getColumnIndex(CalendarContract.Instances.EVENT_COLOR)
+            val iCalColor = c.getColumnIndex(CalendarContract.Instances.CALENDAR_COLOR)
+            val iStatus   = c.getColumnIndex(CalendarContract.Instances.SELF_ATTENDEE_STATUS)
+
             if (iBegin < 0 || iEnd < 0 || iTitle < 0) {
-                Log.w(TAG, "Samsung-Provider hat unerwartetes Schema, weiche aus")
-                return null
+                Log.w(TAG, "$label: unerwartetes Schema"); return null
             }
-            val iId      = c.getColumnIndex("eventId")
-            val iUid     = c.getColumnIndex("eventUid")
-            val iAllDay  = c.getColumnIndex("allDay")
-            val iColor   = c.getColumnIndex("color")
-            val iDeleted = c.getColumnIndex("deleted")
-            val iStatus  = c.getColumnIndex("selfAttendeeStatus")
 
             while (c.moveToNext()) {
-                if (iDeleted >= 0 && c.getInt(iDeleted) == 1) continue
                 if (iStatus >= 0 && c.getInt(iStatus) == STATUS_DECLINED) continue
 
                 val begin = c.getLong(iBegin)
                 val end = c.getLong(iEnd)
-                if (begin >= dayEnd || end <= dayStart) continue      // Tagesfenster
+                val title = (if (iTitle >= 0) c.getString(iTitle) else null)
+                    ?.trim().orEmpty().ifEmpty { "(ohne Titel)" }
+                val id = if (iId >= 0) c.getLong(iId) else begin
 
-                val id = when {
-                    iId >= 0 -> c.getLong(iId)
-                    iUid >= 0 -> c.getString(iUid)?.hashCode()?.toLong() ?: begin
-                    else -> begin
+                // eventColor sticht die Kalenderfarbe, 0 heisst "nicht gesetzt".
+                val ev = if (iEvColor >= 0) c.getInt(iEvColor) else 0
+                val cal = if (iCalColor >= 0) c.getInt(iCalColor) else 0
+                val color = when {
+                    ev != 0 -> ev or ALPHA_OPAQUE
+                    cal != 0 -> cal or ALPHA_OPAQUE
+                    else -> fallbackColor(id)
                 }
-                out += toEvent(
+
+                val startMin = toMinuteOfDay(begin, dayStart)
+                out += CalendarEvent(
                     id = id,
-                    rawTitle = if (iTitle >= 0) c.getString(iTitle) else null,
-                    begin = begin, end = end, dayStart = dayStart,
-                    rawColor = if (iColor >= 0) c.getInt(iColor) else 0,
+                    title = title,
+                    startMin = startMin,
+                    endMin = toMinuteOfDay(end, dayStart).coerceAtLeast(startMin + 1),
+                    colorArgb = color,
+                    glyph = glyphFor(title),
                     allDay = iAllDay >= 0 && c.getInt(iAllDay) == 1,
                 )
             }
         }
-        Log.i(TAG, "Samsung-Provider: ${out.size} Termine heute")
+        Log.i(TAG, "$label: ${out.size} Termine heute" +
+            out.joinToString(prefix = " [", postfix = "]") { "${it.startMin / 60}:%02d ${it.title}".format(it.startMin % 60) })
         return out
     }
 
-    // ── Quelle 2: Standardweg ─────────────────────────────────────────────
-
-    private fun readCalendarContract(dayStart: Long, dayEnd: Long): List<CalendarEvent> {
-        val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().let {
-            ContentUris.appendId(it, dayStart)
-            ContentUris.appendId(it, dayEnd)
-            it.build()
-        }
-        val projection = arrayOf(
-            CalendarContract.Instances.EVENT_ID,
-            CalendarContract.Instances.TITLE,
-            CalendarContract.Instances.BEGIN,
-            CalendarContract.Instances.END,
-            CalendarContract.Instances.ALL_DAY,
-            CalendarContract.Instances.DISPLAY_COLOR,
-            CalendarContract.Instances.SELF_ATTENDEE_STATUS,
-        )
-
-        val out = ArrayList<CalendarEvent>()
-        try {
-            context.contentResolver.query(
-                uri, projection, null, null, "${CalendarContract.Instances.BEGIN} ASC",
-            )?.use { c ->
-                while (c.moveToNext()) {
-                    if (c.getInt(6) == STATUS_DECLINED) continue
-                    out += toEvent(
-                        id = c.getLong(0),
-                        rawTitle = c.getString(1),
-                        begin = c.getLong(2), end = c.getLong(3), dayStart = dayStart,
-                        rawColor = c.getInt(5),
-                        allDay = c.getInt(4) == 1,
-                    )
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "CalendarContract nicht lesbar", e)
-        }
-        Log.i(TAG, "CalendarContract: ${out.size} Termine heute")
-        return out
-    }
-
-    // ── Gemeinsame Abbildung ──────────────────────────────────────────────
-
-    private fun toEvent(
-        id: Long, rawTitle: String?, begin: Long, end: Long, dayStart: Long,
-        rawColor: Int, allDay: Boolean,
-    ): CalendarEvent {
-        val title = rawTitle?.trim().orEmpty().ifEmpty { "(ohne Titel)" }
-        val startMin = toMinuteOfDay(begin, dayStart)
-        return CalendarEvent(
-            id = id,
-            title = title,
-            startMin = startMin,
-            endMin = toMinuteOfDay(end, dayStart).coerceAtLeast(startMin + 1),
-            colorArgb = if (rawColor == 0) fallbackColor(id) else rawColor or ALPHA_OPAQUE,
-            glyph = glyphFor(title),
-            allDay = allDay,
-        )
-    }
+    // ── Abbildung ─────────────────────────────────────────────────────────
 
     /** Minuten seit Tagesbeginn, auf [0, 1440] geklemmt — Termine ragen ueber den Tag hinaus. */
     private fun toMinuteOfDay(millis: Long, dayStart: Long): Int =
@@ -201,16 +181,28 @@ class CalendarRepository(private val context: Context) {
     /** Kalender ohne eigene Farbe bekommen eine stabile aus der Palette. */
     private fun fallbackColor(id: Long): Int {
         val keys = listOf("indigo", "teal", "brass", "rose", "violet")
-        val i = ((id % keys.size) + keys.size) % keys.size
-        return DialGeometry.palette.getValue(keys[i.toInt()])
+        val i = (((id % keys.size) + keys.size) % keys.size).toInt()
+        return DialGeometry.palette.getValue(keys[i])
     }
 
     private companion object {
         const val TAG = "AgendaDial"
         const val DAY_MS = 24L * 60 * 60 * 1000
-        const val STATUS_DECLINED = 2          // CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED
+        const val STATUS_DECLINED = CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED
         const val ALPHA_OPAQUE = 0xFF000000.toInt()
-        val SAMSUNG_EVENTS: Uri =
-            Uri.parse("content://com.samsung.android.watch.watchface.complication.calendar/events")
+
+        val WEAR_INSTANCES: Uri =
+            Uri.parse("content://com.google.android.wearable.provider.calendar/instances/when")
+
+        val PROJECTION = arrayOf(
+            CalendarContract.Instances.EVENT_ID,
+            CalendarContract.Instances.BEGIN,
+            CalendarContract.Instances.END,
+            CalendarContract.Instances.TITLE,
+            CalendarContract.Instances.ALL_DAY,
+            CalendarContract.Instances.EVENT_COLOR,
+            CalendarContract.Instances.CALENDAR_COLOR,
+            CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+        )
     }
 }

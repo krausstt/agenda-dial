@@ -10,7 +10,7 @@
  *   node tools/shoot.mjs preview    nur die Preview
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -31,23 +31,26 @@ if (!chrome) {
   process.exit(1);
 }
 
-function shoot(out, query, w, h) {
+function shootUrl(out, url, w, h) {
   mkdirSync(dirname(out), { recursive: true });
   execFileSync(chrome, [
     "--headless=new", "--disable-gpu", "--hide-scrollbars",
     "--force-color-profile=srgb", "--default-background-color=00000000",
     `--window-size=${w},${h}`, "--virtual-time-budget=6000",
-    `--screenshot=${out}`, `${BENCH}${query}`,
+    `--screenshot=${out}`, url,
   ], { stdio: "ignore" });
   console.log(`  ${out.replace(ROOT + "/", "").replace(ROOT + "\\", "")}`);
 }
+const shoot = (out, query, w, h) => shootUrl(out, `${BENCH}${query}`, w, h);
 
-// Picker-Vorschau des Watchfaces und Launcher-Icon der App — beide sind
-// buchstaeblich das Zifferblatt, damit im Picker nichts Fremdes auftaucht.
+// Picker-Vorschau des Watchfaces: buchstaeblich das Zifferblatt, damit im
+// Picker nichts Fremdes auftaucht.
 shoot(join(ROOT, "watchface/src/main/res/drawable-nodpi/preview.png"),
       "?only=dial&t=17:10&day=clean", 450, 450);
-shoot(join(ROOT, "wear/src/main/res/mipmap-nodpi/ic_launcher.png"),
-      "?only=dial&t=17:10&day=clean", 450, 450);
+
+// Das App-Icon kommt NICHT von hier — Chrome erzwingt eine Mindest-Fenstergroesse
+// und liefert bei 48 px nur einen Ausschnitt. tools/genicon.mjs rastert die
+// Boegen analytisch, siehe tools/png.mjs.
 
 if (process.argv[2] !== "preview") {
   const shots = join(ROOT, "build/shots");

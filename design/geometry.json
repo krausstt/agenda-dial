@@ -61,6 +61,22 @@
   "maxRibbonLanes":    2,
   "maxDayMarkers":     6,
 
+  "$iconNote": [
+    "App-Icon: die minimalste ehrliche Reduktion des Zifferblatts — zwei",
+    "konzentrische Halbkreise, die sich ueber 60 Grad ueberlappen. Genau das",
+    "sind die beiden Ribbon-Bahnen. Angaben in einem 100x100-Feld, Mittelpunkt",
+    "50/50, Winkel wie auf dem Zifferblatt: 0 Grad = 12 Uhr, im Uhrzeigersinn."
+  ],
+  "icon": {
+    "arcs": [
+      { "radius": 38.5, "stroke": 14, "from":  15, "to": 195, "color": "violet" },
+      { "radius": 18.5, "stroke": 14, "from": 135, "to": 315, "color": "teal"   }
+    ],
+    "background": "#14161A",
+    "safeZone": 0.6667,
+    "rasterDensities": { "mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192 }
+  },
+
   "palette": {
     "lume":   "#E8E4D8",
     "now":    "#FF7A2E",

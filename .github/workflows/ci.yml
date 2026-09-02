@@ -33,12 +33,19 @@ jobs:
           node tools/genassets.mjs
           node tools/genwff.mjs
           node tools/genkotlin.mjs
+          node tools/genicon.mjs
 
+      # PNGs bleiben aussen vor: deren Bytes haengen an der zlib-Version des
+      # jeweiligen Node-Builds, ein Byte-Vergleich zwischen lokal und Runner
+      # waere unzuverlaessig. Aendert sich die Spec, aendern sich ohnehin auch
+      # die XML- und Kotlin-Ausgaben — der Drift faellt also trotzdem auf.
       - name: Kein Drift zwischen geometry.json und generierten Dateien
         run: |
-          if [ -n "$(git status --porcelain -- watchface/src core/src)" ]; then
-            echo "::error::Generierte Dateien sind nicht aktuell. Lokal die drei tools/gen*.mjs laufen lassen und committen."
-            git --no-pager diff -- watchface/src core/src
+          DIRTY="$(git status --porcelain -- watchface/src core/src wear/src ':!*.png')"
+          if [ -n "$DIRTY" ]; then
+            echo "::error::Generierte Dateien sind nicht aktuell. Lokal tools/gen*.mjs laufen lassen und committen."
+            echo "$DIRTY"
+            git --no-pager diff -- watchface/src core/src wear/src ':!*.png'
             exit 1
           fi
 

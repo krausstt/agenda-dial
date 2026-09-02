@@ -24,7 +24,9 @@ design/geometry.json   Einzige Quelle der Geometrie. Alles andere wird daraus ge
 tools/genassets.mjs    -> Zeiger-PNGs
 tools/genwff.mjs       -> watchface/src/main/res/raw/watchface.xml
 tools/genkotlin.mjs    -> core/.../DialGeometry.kt
-tools/shoot.mjs        -> Picker-Preview, Launcher-Icon, Szenario-Screenshots
+tools/genicon.mjs      -> App-Icon: Adaptive Icon + Raster-Fallbacks
+tools/shoot.mjs        -> Picker-Preview, Szenario-Screenshots
+tools/png.mjs          -> PNG-Writer + analytischer Bogen-Rasterizer
 
 core/                  Geteilter Renderer + Bahnlogik (JVM-testbar)
 wear/                  Complication-Provider + Organizer-App          -> APK 1
@@ -73,7 +75,7 @@ dieselben Konstanten und rechnen dieselbe Winkelmathematik.
 ### 2 · Generatoren — eine Sekunde
 
 ```bash
-node tools/genassets.mjs && node tools/genwff.mjs && node tools/genkotlin.mjs && node tools/shoot.mjs
+node tools/genassets.mjs && node tools/genwff.mjs && node tools/genkotlin.mjs && node tools/genicon.mjs && node tools/shoot.mjs
 ```
 
 Die CI bricht ab, wenn generierte Dateien nicht zur `geometry.json` passen.

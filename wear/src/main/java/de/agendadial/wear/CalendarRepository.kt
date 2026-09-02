@@ -81,7 +81,13 @@ class CalendarRepository(private val context: Context) {
             return null
         }
 
-        cursor ?: return null
+        if (cursor == null) {
+            // Kein Fehler, nur Stille: so verhaelt sich ein Provider, dessen
+            // Paket wegen Package Visibility unsichtbar ist. Das <queries>-
+            // Element im Manifest ist die Gegenmassnahme.
+            Log.w(TAG, "Samsung-Provider lieferte null — Authority unsichtbar? <queries> im Manifest pruefen")
+            return null
+        }
         val out = ArrayList<CalendarEvent>()
         cursor.use { c ->
             val iBegin  = c.getColumnIndex("begin")

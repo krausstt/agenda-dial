@@ -10,6 +10,20 @@
   <uses-permission android:name="android.permission.READ_CALENDAR" />
 
   <!--
+    Package Visibility, ab Android 11 Pflicht.
+
+    Ohne diese Deklaration ist Samsungs Complication-Provider fuer uns schlicht
+    nicht existent: ContentResolver.query() liefert dann stillschweigend `null`
+    statt einer SecurityException. Genau das ist auf der Watch Ultra passiert —
+    die adb-Shell durfte lesen, unsere App bekam null und fiel unbemerkt auf
+    den leeren AOSP-Kalender zurueck.
+  -->
+  <queries>
+    <provider android:authorities="com.samsung.android.watch.watchface.complication.calendar" />
+    <package android:name="com.samsung.android.watch.watchface.complicationhelper" />
+  </queries>
+
+  <!--
     Adaptive Icon fuer alles ab API 26, plus roundIcon, weil der Wear-Launcher
     rund maskiert. Beides generiert von tools/genicon.mjs aus der icon-Spec in
     design/geometry.json — das Motiv sind die zwei Ribbon-Bahnen des

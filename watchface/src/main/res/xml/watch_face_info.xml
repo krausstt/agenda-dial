@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <WatchFaceInfo>
   <Preview value="@drawable/preview" />
-  <Editable value="false" />
+  <!--
+    Editable erlaubt den Editor. Der Agenda-Slot wird per DefaultProviderPolicy
+    automatisch belegt; der Editor ist der Rettungsweg, falls das einmal nicht
+    greift — sonst gaebe es keine Moeglichkeit, den Provider zuzuweisen.
+  -->
+  <Editable value="true" />
 </WatchFaceInfo>

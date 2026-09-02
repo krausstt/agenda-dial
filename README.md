@@ -136,7 +136,7 @@ Grün in der CI ([Runs](https://github.com/krausstt/agenda-dial/actions)):
 |---|---|
 | Gradle-Build, beide APKs | **läuft** — AGP 9.3, compileSdk 36 |
 | Unit-Tests der Bahnlogik | **grün** — 7 Tests, u. a. Folgetermine vs. echte Überschneidung |
-| `watchface.xml` gegen WFF v2 | **valide** — geprüft mit Googles eigenem `wff-validator` |
+| `watchface.xml` gegen WFF v2 | läuft durch Googles `wff-validator` — **aber siehe Warnung unten** |
 | Generatoren deterministisch | **grün** — CI bricht bei Drift zu `geometry.json` ab |
 
 Auf Hardware bestätigt (Galaxy Watch Ultra, SM-L705F, One UI 8.0 Watch, API 36):
@@ -146,6 +146,27 @@ Auf Hardware bestätigt (Galaxy Watch Ultra, SM-L705F, One UI 8.0 Watch, API 36)
 | Beide APKs installieren | **läuft** |
 | Renderer auf dem Gerät | **läuft** — Indizes, Zeiger, Jetzt-Marke, PM bei 480×480 |
 | Kalenderdaten auf der Uhr | **gefunden** — über Samsungs Complication-Provider, inkl. Outlook-Terminen. Der AOSP-Provider ist leer, siehe [ARCHITECTURE.md §4](docs/ARCHITECTURE.md) |
+
+### Warnung: grüner Validator heißt nicht korrekt
+
+Der `wff-validator` hat eine Fassung durchgewinkt, die auf dem Gerät sichtbar
+kaputt war — zwei Fehlerklassen, die er nicht bemerkt hat:
+
+- `x="219.5"` bei `HourHand`. Laut XSD ist `x` vom Typ `dimensionType`,
+  ausdrücklich *„Integer-based dimension"*. Der Wert wird nicht gerundet,
+  sondern verworfen: das Attribut fällt auf `0` zurück und der Zeiger klebt am
+  linken Displayrand. `Ellipse` nutzt dagegen `floatDimensionType` — dieselbe
+  Zahl rendert dort korrekt. Diese Inkonsistenz zwischen Elementen ist die
+  Falle.
+- `DefaultProviderPolicy` ohne `defaultSystemProvider` und
+  `defaultSystemProviderType`. Beide sind laut XSD **required**; fehlen sie,
+  ist das Element ungültig und wird still ignoriert. Der Complication-Slot
+  bleibt dauerhaft leer, ohne jede Fehlermeldung.
+
+Konsequenz für die Arbeitsweise: **jede WFF-Änderung muss auf echter Hardware
+gegengeprüft werden.** Die XSDs unter
+`google/watchface/third_party/wff/specification/documents/<version>/` sind die
+verlässliche Quelle für Attributtypen — nicht die Doku, nicht der Validator.
 
 Offen:
 

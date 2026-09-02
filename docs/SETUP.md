@@ -287,6 +287,32 @@ Build Tools → Gradle → Gradle JDK* → die gebündelte JetBrains Runtime wä
 deiner Maschine aktuell nicht der Fall. Falls die IT das nachrüstet: Corp-Root-CA
 in den `cacerts` der von Studio genutzten JVM importieren.
 
+**Der Bildschirm dreht sich wie bei einem Handy.** Das ist eine Systemeinstellung
+der Uhr, nicht unsere App. Prüfen und abschalten:
+
+```bash
+adb shell settings get system accelerometer_rotation
+```
+
+```bash
+adb shell settings put system accelerometer_rotation 0
+```
+
+Unsere Activity deklariert zusätzlich `screenOrientation="nosensor"` — ein
+rundes Zifferblatt hat keine sinnvolle Querformat-Variante.
+
+**Die ADB-Verbindung bricht ständig ab.** Wear OS beendet Wireless Debugging,
+sobald die Uhr schläft, und vergibt beim Aufwachen einen **neuen Port**. Die
+mDNS-Discovery cached den alten und läuft dann in `connection refused`. Hilft:
+
+```bash
+adb kill-server; $env:ADB_MDNS_OPENSCREEN=1; adb start-server; adb mdns services
+```
+
+Findet das nichts, IP und Port erneut in *Entwickleroptionen → Debugging über
+WLAN* ablesen. Während einer Session hilft es, das Display der Uhr wach zu
+halten (*Einstellungen → Anzeige → Bildschirm-Timeout*).
+
 **Das Watchface taucht nach der Installation nicht im Picker auf.** Erst prüfen,
 ob es das Kotlin-APK und nicht das WFF-APK ist — nur letzteres erscheint dort.
 Dann `adb logcat | Select-String WFInfoResolver`: eine Zeile `Blocked watch face`

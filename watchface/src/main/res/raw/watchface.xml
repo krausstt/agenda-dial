@@ -20,13 +20,24 @@
         x="0" y="0" width="450" height="450"
         displayName="@string/slot_agenda"
         supportedTypes="PHOTO_IMAGE EMPTY"
-        isCustomizable="false">
+        isCustomizable="true">
       <BoundingOval x="0" y="0" width="450" height="450" outlinePadding="2.0" />
+      <!--
+        defaultSystemProvider und defaultSystemProviderType sind laut XSD
+        BEIDE required. Fehlen sie, ist das Element ungueltig und wird still
+        ignoriert — der Slot bleibt dann dauerhaft leer, ohne Fehlermeldung.
+        (Erste Fassung schrieb hier systemProvider: ein Attributname, den es
+        nicht gibt. Ergebnis: kein Agenda-Layer auf der Uhr.)
+
+        isCustomizable bleibt true und watch_face_info.xml erlaubt Editable,
+        damit der Slot im Editor notfalls manuell zugewiesen werden kann,
+        falls die Default-Policy einmal nicht greift.
+      -->
       <DefaultProviderPolicy
+          defaultSystemProvider="EMPTY"
+          defaultSystemProviderType="EMPTY"
           primaryProvider="de.agendadial.wear/de.agendadial.wear.AgendaComplicationService"
-          primaryProviderType="PHOTO_IMAGE"
-          systemProvider="EMPTY"
-          systemProviderType="EMPTY" />
+          primaryProviderType="PHOTO_IMAGE" />
       <Complication type="PHOTO_IMAGE">
         <PartImage x="0" y="0" width="450" height="450">
           <Image resource="[COMPLICATION.PHOTO_IMAGE]" />
@@ -41,8 +52,8 @@
       Wireframe.
     -->
     <AnalogClock x="0" y="0" width="450" height="450">
-      <HourHand resource="hand_hour" x="219.5" y="166" width="11" height="75" pivotX="0.5" pivotY="0.786667" />
-      <MinuteHand resource="hand_minute" x="221.5" y="139" width="7" height="102" pivotX="0.5" pivotY="0.843137" />
+      <HourHand resource="hand_hour" x="219" y="166" width="12" height="75" pivotX="0.500000" pivotY="0.786667" />
+      <MinuteHand resource="hand_minute" x="221" y="139" width="8" height="102" pivotX="0.500000" pivotY="0.843137" />
     </AnalogClock>
 
     <!-- Zeigerkappe -->

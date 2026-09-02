@@ -92,7 +92,10 @@ function rasterize(w, h, poly, [r, g, b]) {
  */
 function hand(lengthFrac, widthFrac, name) {
   const len = Math.round(lengthFrac * D);
-  const wid = Math.max(4, Math.round(widthFrac * D));
+  // Gerade Breite erzwingen: WFF platziert Zeiger ueber ganzzahlige x-Werte,
+  // eine ungerade Breite ergaebe x = C - w/2 mit halbem Pixel.
+  let wid = Math.max(4, Math.round(widthFrac * D));
+  if (wid % 2 !== 0) wid += 1;
   const tail = Math.round(0.035 * D);
   const w = wid, h = len + tail;
   const tip = Math.round(wid * 0.9);

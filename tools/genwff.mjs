@@ -43,12 +43,30 @@ const HANDS = Object.fromEntries(JSON.parse(readFileSync(HANDS_FILE, "utf8")).ma
 const PROVIDER = "de.agendadial.wear/de.agendadial.wear.AgendaComplicationService";
 const n = v => (Math.round(v * 1000) / 1000).toString();
 
-/** Platziert ein Zeigerbild so, dass sein Pivot exakt im Zifferblattmittelpunkt liegt. */
+/**
+ * Platziert ein Zeigerbild so, dass sein Pivot exakt im Zifferblattmittelpunkt
+ * liegt — mit ganzzahligen Koordinaten.
+ *
+ * Teuer gelernt: x, y, width und height sind bei HourHand/MinuteHand vom Typ
+ * `dimensionType`, laut XSD ausdruecklich "Integer-based dimension". Ein
+ * gebrochener Wert wie 219.5 wird nicht gerundet, sondern verworfen — das
+ * Attribut faellt auf 0 zurueck und der Zeiger klebt am linken Displayrand.
+ * (Ellipse dagegen nutzt floatDimensionType, deshalb rendert die Zeigerkappe
+ * mit Bruchwerten korrekt. Diese Inkonsistenz kostet einen halben Tag, wenn
+ * man sie nicht kennt.)
+ *
+ * Also: Ganzzahlen ausgeben und die Pivot-Anteile — die duerfen float sein —
+ * aus den gerundeten Werten zurueckrechnen, damit der Drehpunkt exakt sitzt.
+ */
 function handTag(tag, h) {
-  const x = C - h.w / 2;
-  const y = C - h.pivotY * h.h;
-  return `      <${tag} resource="${h.name}" x="${n(x)}" y="${n(y)}" ` +
-         `width="${h.w}" height="${h.h}" pivotX="0.5" pivotY="${h.pivotY}" />`;
+  const x = Math.round(C - h.w / 2);
+  const y = Math.round(C - h.pivotY * h.h);
+  const pivotX = (C - x) / h.w;
+  const pivotY = (C - y) / h.h;
+  const f = v => v.toFixed(6);
+  return `      <${tag} resource="${h.name}" x="${x}" y="${y}" ` +
+         `width="${h.w}" height="${h.h}" ` +
+         `pivotX="${f(pivotX)}" pivotY="${f(pivotY)}" />`;
 }
 
 const xml = `<?xml version="1.0" encoding="utf-8"?>
@@ -73,13 +91,24 @@ const xml = `<?xml version="1.0" encoding="utf-8"?>
         x="0" y="0" width="${D}" height="${D}"
         displayName="@string/slot_agenda"
         supportedTypes="PHOTO_IMAGE EMPTY"
-        isCustomizable="false">
+        isCustomizable="true">
       <BoundingOval x="0" y="0" width="${D}" height="${D}" outlinePadding="2.0" />
+      <!--
+        defaultSystemProvider und defaultSystemProviderType sind laut XSD
+        BEIDE required. Fehlen sie, ist das Element ungueltig und wird still
+        ignoriert — der Slot bleibt dann dauerhaft leer, ohne Fehlermeldung.
+        (Erste Fassung schrieb hier systemProvider: ein Attributname, den es
+        nicht gibt. Ergebnis: kein Agenda-Layer auf der Uhr.)
+
+        isCustomizable bleibt true und watch_face_info.xml erlaubt Editable,
+        damit der Slot im Editor notfalls manuell zugewiesen werden kann,
+        falls die Default-Policy einmal nicht greift.
+      -->
       <DefaultProviderPolicy
+          defaultSystemProvider="EMPTY"
+          defaultSystemProviderType="EMPTY"
           primaryProvider="${PROVIDER}"
-          primaryProviderType="PHOTO_IMAGE"
-          systemProvider="EMPTY"
-          systemProviderType="EMPTY" />
+          primaryProviderType="PHOTO_IMAGE" />
       <Complication type="PHOTO_IMAGE">
         <PartImage x="0" y="0" width="${D}" height="${D}">
           <Image resource="[COMPLICATION.PHOTO_IMAGE]" />

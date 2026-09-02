@@ -108,26 +108,52 @@ Garantierte Wege, die nicht davon abhängen:
 
 ---
 
-## 4. Das größte Restrisiko: kommen die Kalenderdaten überhaupt an?
+## 4. Die Datenquelle — auf Gerät geklärt
 
-Nicht das Zeichnen ist riskant, sondern die Datenquelle. Auf Wear OS existiert
-`CalendarContract`, und Apps wie *Calendar for Wear OS* nutzen `READ_CALENDAR`
-standalone auf der Uhr; Google Calendar für Wear OS zeigt Kalender der auf der
-**Uhr** angemeldeten Konten. Ob dein Arbeitskalender (Exchange/Outlook über das
-Handy) im Provider **der Uhr** landet, hängt an deinem Sync-Setup und ist
-gerätespezifisch.
+Das war das größte Restrisiko. Am 02.09.2026 auf einer Galaxy Watch Ultra
+(SM-L705F, One UI 8.0 Watch, Wear OS 6 / API 36) durchgemessen:
 
-**Vor allem anderen zu prüfen** — sobald `adb` verbunden ist:
+| Provider | Ergebnis |
+|---|---|
+| `com.android.calendar` (AOSP `CalendarProvider2`) | **leer** — kein Kalender-Sync-Adapter für das Google-Konto auf der Uhr |
+| `com.samsung.android.calendar.watch` | **gesperrt** — `SecurityException`, verlangt `com.samsung.android.calendar.permission.READ` (Signatur-Level) |
+| `com.google.android.wearable.provider.calendar` | existiert, kennt aber weder `/calendars` noch `/instances` |
+| **`com.samsung.android.watch.watchface.complication.calendar/events`** | **liefert alles** |
 
-```bash
-adb shell content query --uri content://com.android.calendar/calendars --projection _id:account_name:calendar_displayName
+Der letzte ist genau der, den Samsung für Zifferblatt-Complications
+bereitstellt — also für unseren Anwendungsfall gebaut. Er gibt den vom Handy
+gespiegelten Kalender inklusive Exchange-/Outlook-Terminen heraus:
+
+```
+eventId, eventUid, begin, end, beginDay, endDay, title, location, description,
+allDay, color, calendarId, timeZone, organizer, ownerAccount,
+selfAttendeeStatus, hasAlarm, accessLevel, deleted, synced, timeStamp
 ```
 
-Kommt dort nichts oder nur ein leerer lokaler Kalender, greift Plan B:
-eine Companion-App auf dem Handy liest dort `CalendarContract` und schiebt eine
-kompakte Tages-Agenda über die **Wearable Data Layer API** auf die Uhr. Mehr
-Arbeit, aber vollständig unter unserer Kontrolle — und unabhängig davon, welchen
-Kalender du nutzt.
+Reicher als geplant: `color` und `allDay` sparen einen Join, `selfAttendeeStatus`
+erlaubt das Ausblenden abgesagter Termine, `location` und `organizer` sind
+Material für die Detailansicht.
+
+### Drei Eigenheiten, die die Implementierung bestimmen
+
+1. **Die Projektion wird ignoriert.** Es kommen immer alle Spalten zurück,
+   `description` mit vollem HTML-Body inklusive.
+2. **Eine Selection liefert null Zeilen** — nicht gefilterte, gar keine. Selbst
+   `deleted=0` kippt das Ergebnis von 487 auf 0. `selection`, `selectionArgs`
+   und `sortOrder` müssen `null` bleiben, gefiltert wird clientseitig.
+3. **Der Zeitraum ist groß.** Im Test 487 Zeilen über rund fünf Monate.
+
+Alle drei sind in [`CalendarRepository`](../wear/src/main/java/de/agendadial/wear/CalendarRepository.kt)
+kommentiert. Punkt 2 ist die gefährlichste: eine gut gemeinte Optimierung, die
+eine `where`-Klausel einführt, macht die App still leer.
+
+### Plan B steht weiter bereit
+
+Der Provider ist Samsung-spezifisch und undokumentiert. Fällt er weg — anderes
+Fabrikat, Samsung ändert etwas —, greift automatisch der Standardweg über
+`CalendarContract`. Bleibt auch der leer, ist der Rückfallplan unverändert:
+eine Companion-App am Handy liest dort `CalendarContract` und schiebt die
+Tagesagenda über die **Wearable Data Layer API** auf die Uhr.
 
 ---
 

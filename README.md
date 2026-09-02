@@ -139,11 +139,19 @@ Grün in der CI ([Runs](https://github.com/krausstt/agenda-dial/actions)):
 | `watchface.xml` gegen WFF v2 | **valide** — geprüft mit Googles eigenem `wff-validator` |
 | Generatoren deterministisch | **grün** — CI bricht bei Drift zu `geometry.json` ab |
 
-Offen, weil nur auf echter Hardware messbar:
+Auf Hardware bestätigt (Galaxy Watch Ultra, SM-L705F, One UI 8.0 Watch, API 36):
 
 | Punkt | Status |
 |---|---|
-| Kalender-Provider auf der Uhr gefüllt? | **ungeprüft** — Kommando in [SETUP.md, Schritt 7](docs/SETUP.md) |
+| Beide APKs installieren | **läuft** |
+| Renderer auf dem Gerät | **läuft** — Indizes, Zeiger, Jetzt-Marke, PM bei 480×480 |
+| Kalenderdaten auf der Uhr | **gefunden** — über Samsungs Complication-Provider, inkl. Outlook-Terminen. Der AOSP-Provider ist leer, siehe [ARCHITECTURE.md §4](docs/ARCHITECTURE.md) |
+
+Offen:
+
+| Punkt | Status |
+|---|---|
+| Termine im Zifferblatt sichtbar | **als Nächstes** — Provider ist angebunden, Build steht aus |
 | Complication-Update wirklich minütlich? | **ungeprüft** — `UPDATE_PERIOD_SECONDS=60` ist ein Wunsch, kein Vertrag |
 | Ambient-Verhalten des PHOTO_IMAGE-Slots | **ungeprüft** |
 | Quick Button der Watch Ultra auf Fremd-App legbar? | **unbelegt** — Samsung-Doku sagt „an app or setting", publizierte Listen nennen nur Samsung-Funktionen |

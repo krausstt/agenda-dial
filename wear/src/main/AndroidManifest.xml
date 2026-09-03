@@ -76,9 +76,19 @@
       <intent-filter>
         <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
       </intent-filter>
+      <!--
+        LARGE_IMAGE, nicht PHOTO_IMAGE.
+
+        Die Manifest-Metadaten benutzen die Legacy-Bezeichner der Wearable
+        Support Library; PHOTO_IMAGE ist der Name derselben Sache in der
+        androidx-API. Steht hier ein unbekannter Wert, meldet der Service
+        gar keinen Typ an: er erscheint dann nicht im Complication-Picker,
+        und die DefaultProviderPolicy im Watchface ueberspringt ihn
+        stillschweigend. Referenz: android/wear-os-samples, Complications.
+      -->
       <meta-data
           android:name="android.support.wearable.complications.SUPPORTED_TYPES"
-          android:value="PHOTO_IMAGE" />
+          android:value="LARGE_IMAGE" />
       <meta-data
           android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
           android:value="60" />

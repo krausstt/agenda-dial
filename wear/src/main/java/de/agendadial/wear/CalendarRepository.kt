@@ -128,6 +128,7 @@ class CalendarRepository(private val context: Context) {
             val iEvColor  = c.getColumnIndex(CalendarContract.Instances.EVENT_COLOR)
             val iCalColor = c.getColumnIndex(CalendarContract.Instances.CALENDAR_COLOR)
             val iStatus   = c.getColumnIndex(CalendarContract.Instances.SELF_ATTENDEE_STATUS)
+            val iPlace    = c.getColumnIndex(CalendarContract.Instances.EVENT_LOCATION)
 
             if (iBegin < 0 || iEnd < 0 || iTitle < 0) {
                 Log.w(TAG, "$label: unerwartetes Schema"); return null
@@ -160,6 +161,7 @@ class CalendarRepository(private val context: Context) {
                     colorArgb = color,
                     glyph = glyphFor(title),
                     allDay = iAllDay >= 0 && c.getInt(iAllDay) == 1,
+                    location = (if (iPlace >= 0) c.getString(iPlace) else null)?.trim()?.ifEmpty { null },
                 )
             }
         }
@@ -203,6 +205,7 @@ class CalendarRepository(private val context: Context) {
             CalendarContract.Instances.EVENT_COLOR,
             CalendarContract.Instances.CALENDAR_COLOR,
             CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+            CalendarContract.Instances.EVENT_LOCATION,
         )
     }
 }

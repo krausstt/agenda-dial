@@ -14,6 +14,8 @@ data class CalendarEvent(
     val colorArgb: Int,
     val glyph: String,
     val allDay: Boolean = false,
+    /** Ort oder Konferenzlink, fuer die Detailansicht. */
+    val location: String? = null,
 ) {
     val durationMin: Int get() = endMin - startMin
     fun overlaps(other: CalendarEvent) = startMin < other.endMin && endMin > other.startMin

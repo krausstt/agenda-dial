@@ -39,6 +39,9 @@ class DialRenderer {
         typeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
     }
 
+    private val lumeText = 0xFFF4F2EE.toInt()
+    private val mutedText = 0xFF9AA0A8.toInt()
+
     /**
      * @param size Kantenlaenge in Pixeln — 450 (Watch Ultra) oder 396 (Watch 5).
      * @param nowMinuteOfDay Minuten seit Mitternacht.
@@ -57,7 +60,7 @@ class DialRenderer {
         val markers = plan.markersFor(nowMinuteOfDay)
         drawHourMarkers(canvas, cx, cy, d, plan, markers, ambient)
         drawClashSeams(canvas, cx, cy, d, plan, dim)
-        drawBadges(canvas, cx, cy, d, plan, markers, ambient)
+        drawBadges(canvas, d, plan, badgeLayout(size, plan, nowMinuteOfDay), ambient)
         drawMinuteBand(canvas, cx, cy, d, plan, nowMinuteOfDay, ambient, dim)
         drawNowMark(canvas, cx, cy, d, nowMinuteOfDay, ambient)
         drawMeridiem(canvas, cx, cy, d, nowMinuteOfDay, dim)
@@ -130,18 +133,27 @@ class DialRenderer {
 
     // ── Bahn 4: Kuerzel-Badges ───────────────────────────────────────────
 
-    private fun drawBadges(
-        canvas: Canvas, cx: Float, cy: Float, d: Float,
-        plan: DayPlan, markers: List<CalendarEvent>, ambient: Boolean,
-    ) {
+    /** Ein Kuerzel-Badge: Zeichenposition und Tap-Ziel in einem. */
+    data class Badge(val event: CalendarEvent, val x: Float, val y: Float, val radius: Float)
+
+    /**
+     * Badge-Positionen inklusive Kollisionsaufloesung.
+     *
+     * Bewusst oeffentlich und von [render] mitbenutzt: die Organizer-App
+     * bestimmt daraus ihre Trefferflaechen. Waeren es zwei Rechnungen, liefen
+     * Darstellung und Antippbarkeit frueher oder spaeter auseinander.
+     */
+    fun badgeLayout(size: Int, plan: DayPlan, nowMinuteOfDay: Int): List<Badge> {
+        val d = size.toFloat()
+        val cx = d / 2f
+        val cy = d / 2f
         val orbit = d * DialGeometry.hourBadgeOrbit
-        val rBadge = d * DialGeometry.hourBadgeRadius
         val minSep = Math.toDegrees(
-            (2.0 * DialGeometry.hourBadgeRadius * DialGeometry.badgeSepFactor / DialGeometry.hourBadgeOrbit)
+            2.0 * DialGeometry.hourBadgeRadius * DialGeometry.badgeSepFactor / DialGeometry.hourBadgeOrbit
         ).toFloat()
 
         // Mittelpunkte bestimmen, dann in einem Durchlauf auseinanderschieben.
-        val placed = markers.map { ev ->
+        val placed = plan.markersFor(nowMinuteOfDay).map { ev ->
             var a0 = DialGeometry.hourAngle(ev.startMin)
             var a1 = DialGeometry.hourAngle(ev.endMin)
             if (a1 <= a0) a1 += 360f
@@ -152,31 +164,37 @@ class DialRenderer {
                 placed[i] = placed[i].first to (placed[i - 1].second + minSep)
             }
         }
+        return placed.map { (ev, a) ->
+            Badge(ev, px(cx, orbit, a), py(cy, orbit, a), d * DialGeometry.hourBadgeRadius)
+        }
+    }
 
+    private fun drawBadges(
+        canvas: Canvas, d: Float, plan: DayPlan, badges: List<Badge>, ambient: Boolean,
+    ) {
         text.textSize = d * DialGeometry.badgeGlyphSize
         text.typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         val vCenter = -(text.fontMetrics.ascent + text.fontMetrics.descent) / 2f
 
-        for ((ev, a) in placed) {
-            val bx = px(cx, orbit, a)
-            val by = py(cy, orbit, a)
+        for (b in badges) {
+            val ev = b.event
             fill.color = Color.BLACK
-            canvas.drawCircle(bx, by, rBadge, fill)
+            canvas.drawCircle(b.x, b.y, b.radius, fill)
 
             stroke.pathEffect = null
             stroke.strokeWidth = max(1f, d * 0.0033f)
             stroke.color = if (ambient) 0xFF5C626B.toInt() else ev.colorArgb
-            canvas.drawCircle(bx, by, rBadge, stroke)
+            canvas.drawCircle(b.x, b.y, b.radius, stroke)
 
             // Doppelring = dieser Termin liegt in einer verdeckten Bahn
             if (ev.id in plan.overflow) {
                 stroke.strokeWidth = max(1f, d * 0.0026f)
                 stroke.color = alpha(if (ambient) 0xFF4A4F57.toInt() else ev.colorArgb, 0.5f)
-                canvas.drawCircle(bx, by, rBadge + d * 0.008f, stroke)
+                canvas.drawCircle(b.x, b.y, b.radius + d * 0.008f, stroke)
             }
 
             text.color = if (ambient) 0xFF8E9099.toInt() else ev.colorArgb
-            canvas.drawText(ev.glyph, bx, by + vCenter, text)
+            canvas.drawText(ev.glyph, b.x, b.y + vCenter, text)
         }
     }
 
@@ -336,6 +354,98 @@ class DialRenderer {
             canvas.drawPath(p, fill)
         }
         canvas.restore()
+    }
+
+    // ── Detailansicht ─────────────────────────────────────────────────────
+
+    /**
+     * Blendet einen Termin gross und lesbar ueber das Zifferblatt.
+     *
+     * Ein Kuerzel auf dem Ring sagt, WANN etwas ist — nicht WAS. Das hier
+     * beantwortet das Zweite, ohne die Uhr zu verlassen: abgedunkeltes Blatt,
+     * Zeitspanne in der Kalenderfarbe, Titel umgebrochen, Ort darunter.
+     */
+    fun drawEventDetail(canvas: Canvas, size: Int, event: CalendarEvent) {
+        val d = size.toFloat()
+        val cx = d / 2f
+
+        // Nicht ganz deckend: das Zifferblatt bleibt als Kontext erkennbar.
+        canvas.drawColor(alpha(Color.BLACK, 0.90f))
+
+        val maxWidth = d * 0.72f
+        val timeSize = d * 0.042f
+        val titleSize = d * 0.055f
+        val placeSize = d * 0.032f
+
+        text.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        text.textSize = titleSize
+        val titleLines = wrapText(event.title, text, maxWidth, maxLines = 3)
+
+        text.textSize = placeSize
+        val placeLines = event.location
+            ?.takeIf { it.isNotBlank() }
+            ?.let { wrapText(it, text, maxWidth, maxLines = 2) }
+            ?: emptyList()
+
+        val timeLine =
+            if (event.allDay) "ganztaegig" else "${hhmm(event.startMin)}–${hhmm(event.endMin)}"
+
+        // Zeilen erst sammeln, dann als Block mittig setzen.
+        val rows = ArrayList<Row>()
+        rows += Row(timeLine, timeSize, event.colorArgb, monospaced = true, lead = timeSize * 1.85f)
+        titleLines.forEach { rows += Row(it, titleSize, lumeText, false, titleSize * 1.24f) }
+        if (placeLines.isNotEmpty()) {
+            rows += Row("", 0f, 0, false, d * 0.022f)          // Abstandshalter
+            placeLines.forEach { rows += Row(it, placeSize, mutedText, false, placeSize * 1.28f) }
+        }
+
+        var y = d / 2f - rows.sumOf { it.lead.toDouble() }.toFloat() / 2f
+        for (r in rows) {
+            if (r.s.isNotEmpty()) {
+                val p = if (r.monospaced) mono else text
+                p.textSize = r.size
+                p.color = r.color
+                if (!r.monospaced) p.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                canvas.drawText(r.s, cx, y + r.size, p)
+            }
+            y += r.lead
+        }
+
+        // Farbmarke oben — bindet die Ansicht an ihren Marker auf dem Ring zurueck.
+        fill.color = event.colorArgb
+        val bw = d * 0.10f
+        val by = d * 0.20f
+        canvas.drawRoundRect(cx - bw / 2f, by, cx + bw / 2f, by + d * 0.011f, d * 0.006f, d * 0.006f, fill)
+    }
+
+    private data class Row(
+        val s: String, val size: Float, val color: Int, val monospaced: Boolean, val lead: Float,
+    )
+
+    /** Wortumbruch; passt der Rest nicht mehr, bekommt die letzte Zeile eine Ellipse. */
+    private fun wrapText(s: String, paint: Paint, maxWidth: Float, maxLines: Int): List<String> {
+        val words = s.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return emptyList()
+
+        val lines = ArrayList<String>()
+        var cur = ""
+        var truncated = false
+        for ((i, w) in words.withIndex()) {
+            val cand = if (cur.isEmpty()) w else "$cur $w"
+            if (paint.measureText(cand) <= maxWidth) { cur = cand; continue }
+            if (cur.isNotEmpty()) lines += cur
+            if (lines.size >= maxLines) { truncated = i < words.size; cur = ""; break }
+            cur = w
+        }
+        if (cur.isNotEmpty() && lines.size < maxLines) lines += cur
+        else if (cur.isNotEmpty()) truncated = true
+
+        if (truncated && lines.isNotEmpty()) {
+            var last = lines.last()
+            while (last.isNotEmpty() && paint.measureText("$last…") > maxWidth) last = last.dropLast(1)
+            lines[lines.size - 1] = "$last…"
+        }
+        return lines
     }
 
     // ── Primitive ────────────────────────────────────────────────────────

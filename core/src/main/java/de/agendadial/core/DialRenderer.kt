@@ -58,9 +58,9 @@ class DialRenderer {
         drawTicks(canvas, cx, cy, d, dim)
 
         val markers = plan.markersFor(nowMinuteOfDay)
-        drawHourMarkers(canvas, cx, cy, d, plan, markers, ambient)
+        drawHourMarkers(canvas, cx, cy, d, plan, markers, nowMinuteOfDay, ambient)
         drawClashSeams(canvas, cx, cy, d, plan, dim)
-        drawBadges(canvas, d, plan, badgeLayout(size, plan, nowMinuteOfDay), ambient)
+        drawBadges(canvas, d, plan, badgeLayout(size, plan, nowMinuteOfDay), nowMinuteOfDay, ambient)
         drawMinuteBand(canvas, cx, cy, d, plan, nowMinuteOfDay, ambient, dim)
         drawNowMark(canvas, cx, cy, d, nowMinuteOfDay, ambient)
         drawMeridiem(canvas, cx, cy, d, nowMinuteOfDay, dim)
@@ -84,24 +84,67 @@ class DialRenderer {
 
     // ── Bahn 2/3: Tages-Marker ───────────────────────────────────────────
 
+    /** Darstellungsfarbe und Strichstaerke, abgeleitet aus dem Zustand. */
+    private data class Style(val color: Int, val strokeScale: Float)
+
+    private fun styleFor(ev: CalendarEvent, state: EventState, plan: DayPlan, ambient: Boolean): Style {
+        if (ambient) return Style(0xFF3A3F47.toInt(), 1f)
+        val base = displayColor(ev, plan)
+        return when (state) {
+            EventState.CANCELLED -> Style(
+                alpha(DialGeometry.palette.getValue("cancelled"), DialGeometry.cancelledAlpha),
+                DialGeometry.pastStrokeScale,
+            )
+            EventState.PAST -> Style(alpha(base, DialGeometry.pastAlpha), DialGeometry.pastStrokeScale)
+            EventState.RUNNING -> Style(base, DialGeometry.runningStrokeScale)
+            EventState.NEXT -> Style(base, 1f)
+            EventState.LATER -> Style(alpha(base, DialGeometry.laterAlpha), 1f)
+        }
+    }
+
+    /**
+     * Kalenderfarbe, bei Bedarf im Farbton gedreht, damit sie sich vom
+     * zeitlichen Nachbarn abhebt. Siehe [DayPlan.hueShifted].
+     */
+    private fun displayColor(ev: CalendarEvent, plan: DayPlan): Int =
+        if (ev.id in plan.hueShifted) rotateHue(ev.colorArgb, DialGeometry.hueStepDeg) else ev.colorArgb
+
+    private fun rotateHue(argb: Int, degrees: Float): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(argb, hsv)
+        hsv[0] = (hsv[0] + degrees) % 360f
+        // Blasse Kalenderfarben brauchen etwas Saettigung, sonst bleibt die
+        // Drehung unsichtbar.
+        hsv[1] = max(hsv[1], DialGeometry.minSaturation)
+        return Color.HSVToColor(Color.alpha(argb), hsv)
+    }
+
     private fun drawHourMarkers(
         canvas: Canvas, cx: Float, cy: Float, d: Float,
-        plan: DayPlan, markers: List<CalendarEvent>, ambient: Boolean,
+        plan: DayPlan, markers: List<CalendarEvent>, nowMinuteOfDay: Int, ambient: Boolean,
     ) {
+        val next = plan.nextUp(nowMinuteOfDay)
+        val gap = DialGeometry.adjacentGapDeg
         stroke.pathEffect = null
         stroke.strokeCap = Paint.Cap.ROUND
-        stroke.strokeWidth = d * DialGeometry.hourRingStroke
+
         for (ev in markers) {
             val lane = plan.lanes[ev.id] ?: 0
             val r = d * (DialGeometry.hourRingRadius - lane * DialGeometry.hourLaneStep)
             var a0 = DialGeometry.hourAngle(ev.startMin)
             var a1 = DialGeometry.hourAngle(ev.endMin)
             if (a1 <= a0) a1 += 360f
-            if (a1 - a0 < DialGeometry.minMarkerSweepDeg) a1 = a0 + DialGeometry.minMarkerSweepDeg
-            stroke.color = if (ambient) 0xFF3A3F47.toInt() else ev.colorArgb
-            arc(canvas, cx, cy, r,
-                a0 + DialGeometry.ribbonGapDeg / 2f,
-                a1 - DialGeometry.ribbonGapDeg / 2f, stroke)
+            // Der Zwischenraum wird vom Bogen abgezogen; kurze Termine muessen
+            // ihn zusaetzlich zur Mindestlaenge mitbringen, sonst kippt der Bogen
+            // ins Negative und verschwindet.
+            if (a1 - a0 < DialGeometry.minMarkerSweepDeg + gap) {
+                a1 = a0 + DialGeometry.minMarkerSweepDeg + gap
+            }
+
+            val style = styleFor(ev, plan.stateOf(ev, nowMinuteOfDay, next), plan, ambient)
+            stroke.strokeWidth = d * DialGeometry.hourRingStroke * style.strokeScale
+            stroke.color = style.color
+            arc(canvas, cx, cy, r, a0 + gap / 2f, a1 - gap / 2f, stroke)
         }
     }
 
@@ -169,31 +212,54 @@ class DialRenderer {
         }
     }
 
+    /**
+     * Badges tragen die Zustandsinformation mit:
+     *   gefuellt          der naechste anstehende Termin — das Auge landet zuerst hier
+     *   Halo in Akzent    laeuft gerade
+     *   gedimmt           vorbei
+     *   grau              abgesagt
+     *   Doppelring        liegt in einer verdeckten Bahn
+     */
     private fun drawBadges(
-        canvas: Canvas, d: Float, plan: DayPlan, badges: List<Badge>, ambient: Boolean,
+        canvas: Canvas, d: Float, plan: DayPlan, badges: List<Badge>,
+        nowMinuteOfDay: Int, ambient: Boolean,
     ) {
+        val next = plan.nextUp(nowMinuteOfDay)
         text.textSize = d * DialGeometry.badgeGlyphSize
         text.typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         val vCenter = -(text.fontMetrics.ascent + text.fontMetrics.descent) / 2f
 
         for (b in badges) {
             val ev = b.event
-            fill.color = Color.BLACK
+            val state = plan.stateOf(ev, nowMinuteOfDay, next)
+            val style = styleFor(ev, state, plan, ambient)
+            val filled = state == EventState.NEXT && !ambient
+
+            fill.color = if (filled) style.color else Color.BLACK
             canvas.drawCircle(b.x, b.y, b.radius, fill)
 
             stroke.pathEffect = null
             stroke.strokeWidth = max(1f, d * 0.0033f)
-            stroke.color = if (ambient) 0xFF5C626B.toInt() else ev.colorArgb
+            stroke.color = if (ambient) 0xFF5C626B.toInt() else style.color
             canvas.drawCircle(b.x, b.y, b.radius, stroke)
 
-            // Doppelring = dieser Termin liegt in einer verdeckten Bahn
+            if (state == EventState.RUNNING && !ambient) {
+                stroke.strokeWidth = max(1f, d * 0.0040f)
+                stroke.color = DialGeometry.palette.getValue("now")
+                canvas.drawCircle(b.x, b.y, b.radius + d * 0.012f, stroke)
+            }
+
             if (ev.id in plan.overflow) {
                 stroke.strokeWidth = max(1f, d * 0.0026f)
-                stroke.color = alpha(if (ambient) 0xFF4A4F57.toInt() else ev.colorArgb, 0.5f)
+                stroke.color = alpha(style.color, 0.5f)
                 canvas.drawCircle(b.x, b.y, b.radius + d * 0.008f, stroke)
             }
 
-            text.color = if (ambient) 0xFF8E9099.toInt() else ev.colorArgb
+            text.color = when {
+                filled -> Color.BLACK
+                ambient -> 0xFF8E9099.toInt()
+                else -> style.color
+            }
             canvas.drawText(ev.glyph, b.x, b.y + vCenter, text)
         }
     }
@@ -236,16 +302,20 @@ class DialRenderer {
             val (r, w, ts) = lane[li]
             for (ev in band) {
                 val (a0, a1) = clip(ev)
+                // Gleiche Farblogik wie auf dem Stundenring, sonst haette
+                // derselbe Termin aussen und innen verschiedene Farben.
+                val base = if (ev.isCancelled) DialGeometry.palette.getValue("cancelled")
+                           else displayColor(ev, plan)
 
                 stroke.strokeCap = Paint.Cap.BUTT
                 stroke.strokeWidth = w
-                stroke.color = if (ambient) alpha(Color.WHITE, 0.06f) else alpha(ev.colorArgb, 0.22f)
+                stroke.color = if (ambient) alpha(Color.WHITE, 0.06f) else alpha(base, 0.22f)
                 arc(canvas, cx, cy, r, a0, a1, stroke)
-                stroke.color = if (ambient) 0xFF6D737C.toInt() else ev.colorArgb
+                stroke.color = if (ambient) 0xFF6D737C.toInt() else base
                 arc(canvas, cx, cy, r, a0, min(a0 + 1.4f, a1), stroke)
 
                 stroke.strokeWidth = max(1f, d * 0.0026f)
-                stroke.color = if (ambient) alpha(0xFFA0A6AF.toInt(), 0.45f) else alpha(ev.colorArgb, 0.55f)
+                stroke.color = if (ambient) alpha(0xFFA0A6AF.toInt(), 0.45f) else alpha(base, 0.55f)
                 arc(canvas, cx, cy, r - w / 2f, a0, a1, stroke)
                 arc(canvas, cx, cy, r + w / 2f, a0, a1, stroke)
 
@@ -253,7 +323,7 @@ class DialRenderer {
                 var leadDeg = 0f
                 if (!ambient && a1 - a0 > 40f) {
                     mono.textSize = d * DialGeometry.edgeLabelSize
-                    mono.color = alpha(ev.colorArgb, 0.95f)
+                    mono.color = alpha(base, 0.95f)
                     val rIn = r - w / 2f + d * DialGeometry.edgeLabelSize * 0.85f
                     val label = hhmm(ev.startMin)
                     leadDeg = Math.toDegrees((mono.measureText(label) / rIn).toDouble()).toFloat() + 2.5f
@@ -387,12 +457,16 @@ class DialRenderer {
             ?.let { wrapText(it, text, maxWidth, maxLines = 2) }
             ?: emptyList()
 
-        val timeLine =
-            if (event.allDay) "ganztaegig" else "${hhmm(event.startMin)}–${hhmm(event.endMin)}"
+        val timeLine = buildString {
+            append(if (event.allDay) "ganztägig" else "${hhmm(event.startMin)}–${hhmm(event.endMin)}")
+            if (event.isCancelled) append("  ·  abgesagt")
+        }
+        val accent =
+            if (event.isCancelled) DialGeometry.palette.getValue("cancelled") else event.colorArgb
 
         // Zeilen erst sammeln, dann als Block mittig setzen.
         val rows = ArrayList<Row>()
-        rows += Row(timeLine, timeSize, event.colorArgb, monospaced = true, lead = timeSize * 1.85f)
+        rows += Row(timeLine, timeSize, accent, monospaced = true, lead = timeSize * 1.85f)
         titleLines.forEach { rows += Row(it, titleSize, lumeText, false, titleSize * 1.24f) }
         if (placeLines.isNotEmpty()) {
             rows += Row("", 0f, 0, false, d * 0.022f)          // Abstandshalter
@@ -412,7 +486,7 @@ class DialRenderer {
         }
 
         // Farbmarke oben — bindet die Ansicht an ihren Marker auf dem Ring zurueck.
-        fill.color = event.colorArgb
+        fill.color = accent
         val bw = d * 0.10f
         val by = d * 0.20f
         canvas.drawRoundRect(cx - bw / 2f, by, cx + bw / 2f, by + d * 0.011f, d * 0.006f, d * 0.006f, fill)

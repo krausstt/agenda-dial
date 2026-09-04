@@ -33,18 +33,25 @@ function Find-Watch {
   & $Adb start-server 2>&1 | Out-Null
   Start-Sleep -Seconds 2
 
-  # Bereits verbundene TCP-Instanz bevorzugen
-  $line = (& $Adb devices) | Where-Object { $_ -match '^(\d+\.\d+\.\d+\.\d+:\d+)\s+device' }
-  if ($line) { return ($line -split '\s+')[0] }
-
-  $svc = (& $Adb mdns services 2>&1) -join "`n"
-  $m = [regex]::Match($svc, '_adb-tls-connect\._tcp\s+(\d+\.\d+\.\d+\.\d+:\d+)')
-  if (-not $m.Success) {
-    throw "Uhr nicht gefunden. Wireless Debugging auf der Uhr pruefen (Port aendert sich beim Aufwachen)."
+  # Schon verbundene Instanz bevorzugen. Die Serial ist oft NICHT IP:Port,
+  # sondern der mDNS-Name mit Leerzeichen darin — deshalb bis zum
+  # abschliessenden "device" greifen statt an Whitespace zu splitten.
+  foreach ($l in (& $Adb devices)) {
+    if ($l -match '^(.+?)\s+device\s*$' -and $l -notmatch '^List of') { return $Matches[1] }
   }
-  & $Adb connect $m.Groups[1].Value 2>&1 | Out-Null
-  Start-Sleep -Seconds 2
-  return $m.Groups[1].Value
+
+  # Sonst verbinden. mDNS haelt alte Eintraege vor, deren Port laengst tot ist —
+  # Wear OS vergibt beim Aufwachen einen neuen. Also alle durchprobieren.
+  $svc = (& $Adb mdns services 2>&1) -join "`n"
+  $cands = [regex]::Matches($svc, '_adb-tls-connect\._tcp\s+(\d+\.\d+\.\d+\.\d+:\d+)') |
+           ForEach-Object { $_.Groups[1].Value }
+  foreach ($c in $cands) {
+    if (((& $Adb connect $c 2>&1) -join ' ') -match 'connected to') {
+      Start-Sleep -Seconds 2
+      return $c
+    }
+  }
+  throw "Uhr nicht erreichbar. Wireless Debugging auf der Uhr pruefen (Port aendert sich beim Aufwachen)."
 }
 
 $dev = Find-Watch

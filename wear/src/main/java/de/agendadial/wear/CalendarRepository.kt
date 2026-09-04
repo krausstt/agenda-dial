@@ -135,13 +135,18 @@ class CalendarRepository(private val context: Context) {
             }
 
             while (c.moveToNext()) {
-                if (iStatus >= 0 && c.getInt(iStatus) == STATUS_DECLINED) continue
-
                 val begin = c.getLong(iBegin)
                 val end = c.getLong(iEnd)
-                val title = (if (iTitle >= 0) c.getString(iTitle) else null)
-                    ?.trim().orEmpty().ifEmpty { "(ohne Titel)" }
                 val id = if (iId >= 0) c.getLong(iId) else begin
+
+                // Abgesagte werden nicht ausgeblendet, sondern grau gezeichnet.
+                // Zwei Wege dorthin: der Organisator sagt ab (Outlook stellt dem
+                // Titel ein Praefix voran) oder du selbst lehnst ab.
+                val declined = iStatus >= 0 && c.getInt(iStatus) == STATUS_DECLINED
+                val raw = (if (iTitle >= 0) c.getString(iTitle) else null)?.trim().orEmpty()
+                val prefix = CANCEL_PREFIXES.firstOrNull { raw.startsWith(it, ignoreCase = true) }
+                val title = (if (prefix != null) raw.removeRange(0, prefix.length).trim() else raw)
+                    .ifEmpty { "(ohne Titel)" }
 
                 // eventColor sticht die Kalenderfarbe, 0 heisst "nicht gesetzt".
                 val ev = if (iEvColor >= 0) c.getInt(iEvColor) else 0
@@ -162,6 +167,7 @@ class CalendarRepository(private val context: Context) {
                     glyph = glyphFor(title),
                     allDay = iAllDay >= 0 && c.getInt(iAllDay) == 1,
                     location = (if (iPlace >= 0) c.getString(iPlace) else null)?.trim()?.ifEmpty { null },
+                    isCancelled = declined || prefix != null,
                 )
             }
         }
@@ -191,6 +197,9 @@ class CalendarRepository(private val context: Context) {
         const val TAG = "AgendaDial"
         const val DAY_MS = 24L * 60 * 60 * 1000
         const val STATUS_DECLINED = CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED
+
+        /** Praefixe, die Outlook/Exchange abgesagten Terminen voranstellt. */
+        val CANCEL_PREFIXES = listOf("Abgesagt:", "Canceled:", "Cancelled:", "Storniert:")
         const val ALPHA_OPAQUE = 0xFF000000.toInt()
 
         val WEAR_INSTANCES: Uri =

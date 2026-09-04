@@ -35,6 +35,14 @@ object DialGeometry {
     const val edgeLabelSize: Float = 0.0230f
     const val badgeGlyphSize: Float = 0.0230f
     const val meridiemSize: Float = 0.0200f
+    const val pastAlpha: Float = 0.2600f
+    const val pastStrokeScale: Float = 0.6200f
+    const val laterAlpha: Float = 0.7500f
+    const val runningStrokeScale: Float = 1.2000f
+    const val cancelledAlpha: Float = 0.4200f
+    const val adjacentGapDeg: Float = 3.6000f
+    const val hueStepDeg: Float = 32.0000f
+    const val minSaturation: Float = 0.3500f
     const val minMarkerSweepDeg: Float = 3.2000f
     const val ribbonGapDeg: Float = 1.6000f
     const val badgeSepFactor: Float = 1.2000f
@@ -46,6 +54,7 @@ object DialGeometry {
     val palette: Map<String, Int> = mapOf(
         "lume" to 0xFFE8E4D8.toInt(),
         "now" to 0xFFFF7A2E.toInt(),
+        "cancelled" to 0xFF767C87.toInt(),
         "indigo" to 0xFF5B8DFF.toInt(),
         "teal" to 0xFF26C2A8.toInt(),
         "brass" to 0xFFF0B429.toInt(),

@@ -16,6 +16,12 @@ data class CalendarEvent(
     val allDay: Boolean = false,
     /** Ort oder Konferenzlink, fuer die Detailansicht. */
     val location: String? = null,
+    /**
+     * Vom Organisator abgesagt oder von dir abgelehnt. Wird nicht ausgeblendet,
+     * sondern grau gezeichnet — der Slot war schliesslich mal verplant, und ein
+     * verschwundener Termin verwirrt mehr als ein durchgestrichener.
+     */
+    val isCancelled: Boolean = false,
 ) {
     val durationMin: Int get() = endMin - startMin
     fun overlaps(other: CalendarEvent) = startMin < other.endMin && endMin > other.startMin
@@ -24,6 +30,16 @@ data class CalendarEvent(
 
 /** Zeitfenster, in dem mindestens zwei Termine gleichzeitig laufen. */
 data class ClashSpan(val startMin: Int, val endMin: Int, val peakDepth: Int)
+
+/**
+ * Zeitlicher Zustand eines Termins — die wichtigste Information auf dem Blatt.
+ *
+ * Ein Arbeitskalender faerbt alle Termine gleich; die Kalenderfarbe sagt also
+ * wenig. Was zaehlt: ist das vorbei, laeuft es, oder ist es das Naechste.
+ * Deshalb traegt die Helligkeit den Zeitbezug, der Farbton nur noch die
+ * Kalenderzugehoerigkeit.
+ */
+enum class EventState { PAST, RUNNING, NEXT, LATER, CANCELLED }
 
 /**
  * Der Tag, aufbereitet fuers Zeichnen: Bahnzuweisung, Konfliktfenster,
@@ -87,6 +103,57 @@ class DayPlan(events: List<CalendarEvent>) {
 
     fun isInClash(ev: CalendarEvent) = clashes.any { ev.startMin < it.endMin && ev.endMin > it.startMin }
 
+    // ── Zeitlicher Zustand ────────────────────────────────────────────────
+
+    /** Der naechste anstehende Termin — abgesagte und ganztaegige zaehlen nicht. */
+    fun nextUp(nowMinuteOfDay: Int): CalendarEvent? =
+        events.firstOrNull { !it.isCancelled && !it.allDay && it.startMin > nowMinuteOfDay }
+
+    /**
+     * [next] kann durchgereicht werden, damit der Renderer es nicht je Termin
+     * neu sucht.
+     */
+    fun stateOf(
+        ev: CalendarEvent,
+        nowMinuteOfDay: Int,
+        next: CalendarEvent? = nextUp(nowMinuteOfDay),
+    ): EventState = when {
+        ev.isCancelled -> EventState.CANCELLED
+        ev.endMin <= nowMinuteOfDay -> EventState.PAST
+        ev.runsAt(nowMinuteOfDay) -> EventState.RUNNING
+        ev.id == next?.id -> EventState.NEXT
+        else -> EventState.LATER
+    }
+
+    /**
+     * Termine, deren Farbton gedreht wird, weil der zeitliche Nachbar fast
+     * dieselbe Kalenderfarbe hat.
+     *
+     * Bewusst der Farbton und nicht die Helligkeit: Helligkeit ist schon fuer
+     * "vorbei" vergeben, eine zweite Bedeutung darauf waere nicht mehr lesbar.
+     * Bei einer Kette gleichfarbiger Termine alterniert es, sodass nie zwei
+     * benachbarte gleich aussehen.
+     */
+    val hueShifted: Set<Long> by lazy {
+        val out = HashSet<Long>()
+        var shift = false
+        var prev: CalendarEvent? = null
+        for (ev in events) {
+            val p = prev
+            shift = p != null && colorsClose(p.colorArgb, ev.colorArgb) && !shift
+            if (shift) out += ev.id
+            prev = ev
+        }
+        out
+    }
+
+    private fun colorsClose(a: Int, b: Int): Boolean {
+        val d = kotlin.math.abs(((a shr 16) and 255) - ((b shr 16) and 255)) +
+            kotlin.math.abs(((a shr 8) and 255) - ((b shr 8) and 255)) +
+            kotlin.math.abs((a and 255) - (b and 255))
+        return d < 90
+    }
+
     /** Termine, die in die Stunde ab [hourStartMin] hineinragen — Primaertermin zuerst. */
     fun inHour(hourStartMin: Int): List<CalendarEvent> =
         events.filter { it.endMin > hourStartMin && it.startMin < hourStartMin + 60 && !it.allDay }
@@ -124,6 +191,7 @@ class DayPlan(events: List<CalendarEvent>) {
         if (timed.size <= DialGeometry.maxDayMarkers) return timed
         return timed.sortedBy { ev ->
             when {
+                ev.isCancelled -> 3                       // faellt als Erstes weg
                 ev.runsAt(nowMinuteOfDay) -> 0
                 ev.startMin > nowMinuteOfDay -> 1
                 else -> 2

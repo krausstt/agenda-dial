@@ -54,6 +54,24 @@
   "badgeGlyphSize":     0.0230,
   "meridiemSize":       0.0200,
 
+  "$stateNote": [
+    "Zustand schlaegt Kalenderfarbe. Ein Arbeitskalender faerbt alle Termine",
+    "gleich; was am Handgelenk zaehlt, ist vorbei / laeuft / kommt als",
+    "Naechstes. Deshalb traegt die Helligkeit den Zeitbezug und der Farbton",
+    "nur noch die Kalenderzugehoerigkeit.",
+    "hueStepDeg dreht den Farbton benachbarter Marker gleicher Farbe - bewusst",
+    "Farbton statt Helligkeit, sonst kollidiert die Trennung mit der",
+    "Vergangenheits-Abdunklung."
+  ],
+  "pastAlpha":          0.26,
+  "pastStrokeScale":    0.62,
+  "laterAlpha":         0.75,
+  "runningStrokeScale": 1.20,
+  "cancelledAlpha":     0.42,
+  "adjacentGapDeg":     3.6,
+  "hueStepDeg":         32.0,
+  "minSaturation":      0.35,
+
   "minMarkerSweepDeg": 3.2,
   "ribbonGapDeg":      1.6,
   "badgeSepFactor":    1.20,
@@ -78,8 +96,9 @@
   },
 
   "palette": {
-    "lume":   "#E8E4D8",
-    "now":    "#FF7A2E",
+    "lume":      "#E8E4D8",
+    "now":       "#FF7A2E",
+    "cancelled": "#767C87",
     "indigo": "#5B8DFF",
     "teal":   "#26C2A8",
     "brass":  "#F0B429",

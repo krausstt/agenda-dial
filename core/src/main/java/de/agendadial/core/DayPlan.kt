@@ -85,7 +85,10 @@ class DayPlan(events: List<CalendarEvent>) {
      */
     val clashes: List<ClashSpan> by lazy {
         val pts = ArrayList<Pair<Int, Int>>(events.size * 2)
-        for (ev in events) { pts += ev.startMin to 1; pts += ev.endMin to -1 }
+        // Abgesagte blockieren nichts mehr, sie erzeugen also auch keinen Konflikt.
+        for (ev in events.filter { !it.isCancelled && !it.allDay }) {
+            pts += ev.startMin to 1; pts += ev.endMin to -1
+        }
         pts.sortWith(compareBy({ it.first }, { it.second }))
 
         val out = ArrayList<ClashSpan>()

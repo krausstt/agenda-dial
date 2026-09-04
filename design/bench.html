@@ -234,6 +234,7 @@
         <div class="row">
           <button id="btn-day-clean" aria-pressed="true">Normaler Tag</button>
           <button id="btn-day-clash" aria-pressed="false">Kollisionstag</button>
+          <button id="btn-day-work" aria-pressed="false">Arbeitstag</button>
         </div>
       </section>
 
@@ -274,6 +275,27 @@
               <circle cx="12" cy="7" r="4.3" fill="none" stroke="#a78bfa" stroke-width="1.3"/>
             </svg>
             <span>Doppelring — dieser Termin liegt in einer verdeckten dritten Bahn</span>
+          </div>
+          <div>
+            <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+              <circle cx="7" cy="7" r="5" fill="#26c2a8"/>
+              <circle cx="19" cy="7" r="5" fill="none" stroke="#26c2a8" stroke-width="1.3" opacity=".75"/>
+            </svg>
+            <span>Gefülltes Badge — der <b>nächste</b> Termin; hohl = später</span>
+          </div>
+          <div>
+            <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+              <rect x="1" y="5" width="9" height="3.4" rx="1.7" fill="#26c2a8" opacity=".26"/>
+              <rect x="14" y="4.3" width="9" height="4.6" rx="2.3" fill="#26c2a8"/>
+              <circle cx="18.5" cy="6.6" r="6.4" fill="none" stroke="#ff7a2e" stroke-width="1"/>
+            </svg>
+            <span>Blass = vorbei · kräftig mit Akzentring = <b>läuft gerade</b></span>
+          </div>
+          <div>
+            <svg width="24" height="14" viewBox="0 0 24 14" aria-hidden="true">
+              <rect x="1" y="5.3" width="22" height="2.6" rx="1.3" fill="#767c87" opacity=".55"/>
+            </svg>
+            <span>Grau und dünn — abgesagt, aber nicht verschwunden</span>
           </div>
         </div>
       </section>
@@ -330,7 +352,13 @@
     titleSize: 0.0320, titleSizeSecondary: 0.0270,
     edgeLabelSize: 0.0230, badgeGlyphSize: 0.0230, meridiemSize: 0.0200,
     minMarkerSweepDeg: 3.2, ribbonGapDeg: 1.6, badgeSepFactor: 1.20,
-    maxHourLanes: 2, maxRibbonLanes: 2
+    maxHourLanes: 2, maxRibbonLanes: 2,
+
+    // Zustand schlägt Kalenderfarbe: Helligkeit trägt den Zeitbezug, der
+    // Farbton nur noch die Kalenderzugehörigkeit.
+    pastAlpha: 0.26, pastStrokeScale: 0.62, laterAlpha: 0.75,
+    runningStrokeScale: 1.20, cancelledAlpha: 0.42,
+    adjacentGapDeg: 3.6, hueStepDeg: 32, minSaturation: 0.35
   };
 
   const SPEC_ROWS = [
@@ -348,7 +376,12 @@
     ["–", "Zeiger",       "handMinuteLength",   GEO.handMinuteLength,   "kurz: die Minute liest man an der Jetzt-Marke"],
   ];
 
-  const PALETTE = { indigo:"#5b8dff", teal:"#26c2a8", brass:"#f0b429", rose:"#ef6a88", violet:"#a78bfa" };
+  const PALETTE = {
+    indigo:"#5b8dff", teal:"#26c2a8", brass:"#f0b429", rose:"#ef6a88", violet:"#a78bfa",
+    cancelled:"#767c87",
+    // Realistischer Härtefall: ein Arbeitskalender färbt alles gleich blass.
+    work:"#ffffb4",
+  };
   const LUME = "#e8e4d8";
 
   // ───────────────────────────────────────────────────────────── Datensätze
@@ -371,6 +404,16 @@
       { id:"b7", s:17*60,    e:17*60+45, t:"1:1 mit Lena",        g:"L", c:"violet" },
       { id:"b8", s:17*60+15, e:18*60,    t:"Release Sync",        g:"R", c:"teal"   },
       { id:"b9", s:18*60,    e:18*60+20, t:"Wochenabschluss",     g:"W", c:"indigo" },
+    ],
+    // Der realistische Härtefall: der Arbeitskalender färbt alles gleich, und
+    // ein Termin ist abgesagt. Genau hier versagt Farbe als einzige Dimension.
+    work: [
+      { id:"c1", s: 9*60+30, e:10*60,    t:"Tobias - Martin [Weekly]", g:"T", c:"work" },
+      { id:"c2", s:10*60,    e:10*60+30, t:"PreSales weekly",          g:"P", c:"work" },
+      { id:"c3", s:11*60,    e:11*60+30, t:"Anna & Tobias",            g:"A", c:"indigo" },
+      { id:"c4", s:11*60+15, e:12*60,    t:"Presales CNEE [Weekly]",   g:"C", c:"work", x:true },
+      { id:"c5", s:12*60,    e:12*60+30, t:"Lunch",                    g:"L", c:"work" },
+      { id:"c6", s:14*60,    e:15*60,    t:"Kundentermin Bosch",       g:"K", c:"work" },
     ]
   };
 
@@ -410,7 +453,8 @@
   /** Zeitfenster, in denen mindestens zwei Termine gleichzeitig laufen. */
   function clashSpans(events) {
     const pts = [];
-    for (const ev of events) { pts.push([ev.s, 1], [ev.e, -1]); }
+    // Abgesagte blockieren nichts mehr, erzeugen also auch keinen Konflikt.
+    for (const ev of events.filter(e => !e.x)) { pts.push([ev.s, 1], [ev.e, -1]); }
     pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const spans = [];
     let depth = 0, start = null, peak = 0;
@@ -421,6 +465,67 @@
       if (prev >= 2 && depth < 2 && start !== null) { spans.push({ s: start, e: t, n: peak }); start = null; peak = 0; }
     }
     return spans;
+  }
+
+  // ── Zeitlicher Zustand — spiegelt DayPlan.stateOf / DialRenderer.styleFor ──
+
+  const nextUp = (events, now) =>
+    [...events].filter(e => !e.x && e.s > now).sort((a, b) => a.s - b.s)[0] || null;
+
+  function stateOf(ev, now, next) {
+    if (ev.x) return "cancelled";
+    if (ev.e <= now) return "past";
+    if (ev.s <= now && ev.e > now) return "running";
+    if (next && ev.id === next.id) return "next";
+    return "later";
+  }
+
+  const rgbOf = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const closeColors = (a, b) => {
+    const [x, y] = [rgbOf(a), rgbOf(b)];
+    return Math.abs(x[0]-y[0]) + Math.abs(x[1]-y[1]) + Math.abs(x[2]-y[2]) < 90;
+  };
+
+  /**
+   * Termine, deren Farbton gedreht wird, weil der zeitliche Nachbar fast
+   * dieselbe Kalenderfarbe hat. Farbton statt Helligkeit, weil Helligkeit
+   * schon den Zeitbezug trägt.
+   */
+  function hueShiftedSet(events) {
+    const out = new Set();
+    let shift = false, prev = null;
+    for (const ev of [...events].sort((a, b) => a.s - b.s)) {
+      shift = prev !== null && closeColors(PALETTE[prev.c], PALETTE[ev.c]) && !shift;
+      if (shift) out.add(ev.id);
+      prev = ev;
+    }
+    return out;
+  }
+
+  function rotateHue(hex, deg, minSat) {
+    const [r, g, b] = rgbOf(hex).map(v => v / 255);
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), df = mx - mn;
+    let h = 0;
+    if (df) h = mx === r ? ((g - b) / df) % 6 : mx === g ? (b - r) / df + 2 : (r - g) / df + 4;
+    h = (h * 60 + deg + 360) % 360;
+    const s = Math.max(mx === 0 ? 0 : df / mx, minSat), v = mx;
+    const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+    const seg = [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][Math.floor(h / 60) % 6];
+    return "#" + seg.map(n => Math.round((n + m) * 255).toString(16).padStart(2, "0")).join("");
+  }
+
+  function styleFor(ev, state, shifted, ambient) {
+    if (ambient) return { color: "#3a3f47", scale: 1 };
+    const base = shifted.has(ev.id)
+      ? rotateHue(PALETTE[ev.c], GEO.hueStepDeg, GEO.minSaturation)
+      : PALETTE[ev.c];
+    switch (state) {
+      case "cancelled": return { color: hexA(PALETTE.cancelled, GEO.cancelledAlpha), scale: GEO.pastStrokeScale, base };
+      case "past":      return { color: hexA(base, GEO.pastAlpha), scale: GEO.pastStrokeScale, base };
+      case "running":   return { color: base, scale: GEO.runningStrokeScale, base };
+      case "next":      return { color: base, scale: 1, base };
+      default:          return { color: hexA(base, GEO.laterAlpha), scale: 1, base };
+    }
   }
 
   function arcBand(ctx, cx, cy, r, w, a0, a1, color, cap = "round") {
@@ -548,18 +653,21 @@
 
     // ── Bahn 2/3: Tages-Marker, gestapelt nach Überschneidung ──────────
     const { lanes, overflow } = assignLanes(events, GEO.maxHourLanes);
-    const stackCount = new Map(); // Lane-1-Termine, die weitere verdecken
+    const shifted = hueShiftedSet(events);
+    const next = nextUp(events, minutes);
+    const mGap = GEO.adjacentGapDeg;
 
     for (const ev of events) {
       const lane = lanes.get(ev.id);
       const r = G("hourRingRadius") - lane * G("hourLaneStep");
       let a0 = toDeg(ev.s), a1 = toDeg(ev.e);
       if (a1 <= a0) a1 += 360;
-      if (a1 - a0 < GEO.minMarkerSweepDeg) a1 = a0 + GEO.minMarkerSweepDeg;
-      arcBand(ctx, cx, cy, r, G("hourRingStroke"),
-              a0 + GEO.ribbonGapDeg / 2, a1 - GEO.ribbonGapDeg / 2,
-              ambient ? "#3a3f47" : col(ev.c));
-      if (overflow.get(ev.id)) stackCount.set(ev.id, true);
+      // Der Zwischenraum wird abgezogen; kurze Termine müssen ihn zusätzlich
+      // zur Mindestlänge mitbringen, sonst kippt der Bogen ins Negative.
+      if (a1 - a0 < GEO.minMarkerSweepDeg + mGap) a1 = a0 + GEO.minMarkerSweepDeg + mGap;
+      const st = styleFor(ev, stateOf(ev, minutes, next), shifted, ambient);
+      arcBand(ctx, cx, cy, r, G("hourRingStroke") * st.scale,
+              a0 + mGap / 2, a1 - mGap / 2, st.color);
     }
 
     // ── Konflikt-Nähte ─────────────────────────────────────────────────
@@ -583,20 +691,29 @@
 
     for (const { ev, a } of badges) {
       const [bx, by] = pt(cx, cy, G("hourBadgeOrbit"), a);
-      const base = col(ev.c);
-      const stacked = stackCount.has(ev.id);
+      const state = stateOf(ev, minutes, next);
+      const st = styleFor(ev, state, shifted, ambient);
+      const filled = state === "next" && !ambient;
+
       ctx.beginPath(); ctx.arc(bx, by, G("hourBadgeRadius"), 0, TAU);
-      ctx.fillStyle = "#000"; ctx.fill();
+      ctx.fillStyle = filled ? st.color : "#000"; ctx.fill();
       ctx.lineWidth = Math.max(1, D * 0.0033);
-      ctx.strokeStyle = ambient ? "#5c626b" : base; ctx.stroke();
+      ctx.strokeStyle = ambient ? "#5c626b" : st.color; ctx.stroke();
+
+      // Halo = läuft gerade
+      if (state === "running" && !ambient) {
+        ctx.beginPath(); ctx.arc(bx, by, G("hourBadgeRadius") + D * 0.012, 0, TAU);
+        ctx.strokeStyle = "#ff7a2e";
+        ctx.lineWidth = Math.max(1, D * 0.0040); ctx.stroke();
+      }
       // Doppelring = dieser Termin liegt in einer verdeckten Bahn
-      if (stacked) {
+      if (overflow.get(ev.id)) {
         ctx.beginPath(); ctx.arc(bx, by, G("hourBadgeRadius") + D * 0.008, 0, TAU);
-        ctx.strokeStyle = ambient ? "#4a4f57" : hexA(base, 0.5);
+        ctx.strokeStyle = ambient ? "#4a4f57" : hexA(st.base, 0.5);
         ctx.lineWidth = Math.max(1, D * 0.0026); ctx.stroke();
       }
       ctx.font = `600 ${G("badgeGlyphSize")}px "Instrument Sans", sans-serif`;
-      ctx.fillStyle = ambient ? "#8e9099" : base;
+      ctx.fillStyle = filled ? "#000" : (ambient ? "#8e9099" : st.color);
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(ev.g, bx, by + G("badgeGlyphSize") * 0.05);
 
@@ -650,7 +767,11 @@
     for (let li = 0; li < LANE.length; li++) {
       const { r, w, ts } = LANE[li];
       for (const ev of onLane[li]) {
-        const base = col(ev.c);
+        // Gleiche Farblogik wie auf dem Stundenring, sonst hätte derselbe
+        // Termin außen und innen verschiedene Farben.
+        const base = ev.x ? PALETTE.cancelled
+          : (shifted.has(ev.id) ? rotateHue(PALETTE[ev.c], GEO.hueStepDeg, GEO.minSaturation)
+                                : PALETTE[ev.c]);
         const [a0, a1] = clipDeg(ev);
 
         arcBand(ctx, cx, cy, r, w, a0, a1, ambient ? "rgba(255,255,255,.06)" : hexA(base, 0.22), "butt");
@@ -767,7 +888,7 @@
     guides:  Q.get("guides")  === "1",
     hours24: Q.get("h24")     === "1",
     selected: null, playing: false,
-    day: Q.get("day") === "clash" ? "clash" : "clean"
+    day: ["clash", "work"].includes(Q.get("day")) ? Q.get("day") : "clean"
   };
   const cUltra = document.getElementById("c-ultra");
   const cW5 = document.getElementById("c-w5");
@@ -847,7 +968,11 @@
   });
   document.getElementById("btn-1710").addEventListener("click", () => { state.minutes = 17*60 + 10; paint(); });
 
-  const dayBtns = { clean: document.getElementById("btn-day-clean"), clash: document.getElementById("btn-day-clash") };
+  const dayBtns = {
+    clean: document.getElementById("btn-day-clean"),
+    clash: document.getElementById("btn-day-clash"),
+    work:  document.getElementById("btn-day-work"),
+  };
   for (const [key, btn] of Object.entries(dayBtns)) {
     btn.addEventListener("click", () => {
       state.day = key; state.selected = null;
